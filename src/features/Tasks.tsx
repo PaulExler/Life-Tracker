@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { ok } from '../lib/toast'
 import { changed, forgetEvent } from '../lib/gcal'
-import { addDays, fmtDue, fromLocalInput, startOfDay, toLocalInput } from '../lib/date'
+import { addDays, dayStr, deadlineIso, END_OF_DAY, fmtDue, fmtTime, startOfDay } from '../lib/date'
 import type { Task } from '../lib/types'
 import { EditIcon, TrashIcon } from '../components/Icons'
 
@@ -101,18 +101,20 @@ export function TaskList({ mode = 'all' }: { mode?: 'all' | 'today' }) {
 
 function TaskForm({ onAdded }: { onAdded: () => void }) {
   const [title, setTitle] = useState('')
-  const [due, setDue] = useState('')
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState(END_OF_DAY)
   const [busy, setBusy] = useState(false)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
     setBusy(true)
-    const res = await supabase.from('tasks').insert({ title: title.trim(), due_at: fromLocalInput(due) })
+    const res = await supabase.from('tasks').insert({ title: title.trim(), due_at: deadlineIso(date, time) })
     setBusy(false)
     if (ok(res)) {
       setTitle('')
-      setDue('')
+      setDate('')
+      setTime(END_OF_DAY)
       onAdded()
       changed()
     }
@@ -121,13 +123,8 @@ function TaskForm({ onAdded }: { onAdded: () => void }) {
   return (
     <form className="card stack" onSubmit={submit}>
       <input placeholder="New task…" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <div className="row">
-        <label className="grow">
-          <span className="label">Deadline (optional)</span>
-          <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
-        </label>
-        <button className="primary" disabled={busy || !title.trim()}>Add</button>
-      </div>
+      <DeadlineInputs date={date} time={time} onDate={setDate} onTime={setTime} />
+      <button className="primary" disabled={busy || !title.trim()}>Add</button>
     </form>
   )
 }
@@ -145,7 +142,8 @@ function TaskRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(t.title)
-  const [due, setDue] = useState(toLocalInput(t.due_at))
+  const [date, setDate] = useState(t.due_at ? dayStr(new Date(t.due_at)) : '')
+  const [time, setTime] = useState(t.due_at ? fmtTime(t.due_at) : END_OF_DAY)
   const [notes, setNotes] = useState(t.notes ?? '')
   const overdue = !t.done_at && t.due_at && new Date(t.due_at) < new Date()
 
@@ -153,14 +151,14 @@ function TaskRow({
     return (
       <li className="item stack">
         <input value={title} onChange={(e) => setTitle(e.target.value)} />
-        <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
+        <DeadlineInputs date={date} time={time} onDate={setDate} onTime={setTime} />
         <textarea placeholder="Notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         <div className="row end">
           <button onClick={() => setEditing(false)}>Cancel</button>
           <button
             className="primary"
             onClick={() => {
-              onSave(t, { title: title.trim() || t.title, due_at: fromLocalInput(due), notes: notes.trim() || null })
+              onSave(t, { title: title.trim() || t.title, due_at: deadlineIso(date, time), notes: notes.trim() || null })
               setEditing(false)
             }}
           >
@@ -182,5 +180,26 @@ function TaskRow({
       <button className="icon" onClick={() => setEditing(true)} aria-label="Edit"><EditIcon /></button>
       <button className="icon" onClick={() => onRemove(t)} aria-label="Delete"><TrashIcon /></button>
     </li>
+  )
+}
+
+/** Deadline = date (optional) + time (pre-set to 23:59, so usually only the date is picked). */
+function DeadlineInputs({ date, time, onDate, onTime }: { date: string; time: string; onDate: (v: string) => void; onTime: (v: string) => void }) {
+  return (
+    <div className="row deadline">
+      <label className="grow">
+        <span className="label">Deadline (optional)</span>
+        <input type="date" value={date} onChange={(e) => onDate(e.target.value)} />
+      </label>
+      <label className="deadline-time">
+        <span className="label">Time</span>
+        <input type="time" value={time} onChange={(e) => onTime(e.target.value)} disabled={!date} />
+      </label>
+      {date && (
+        <button type="button" className="icon" onClick={() => onDate('')} aria-label="Remove deadline" title="Remove deadline">
+          ✕
+        </button>
+      )}
+    </div>
   )
 }

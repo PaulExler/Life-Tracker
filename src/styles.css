@@ -246,3 +246,7 @@ a.btn-secondary {
   display: inline-flex; align-items: center; min-height: 40px; padding: 8px 14px; border-radius: 10px;
   border: 1px solid var(--border); background: var(--bg); color: var(--accent); text-decoration: none; font-weight: 600; font-size: .9rem;
 }
+
+.row.deadline { align-items: flex-end; }
+.deadline-time { width: 112px; flex: none; }
+.deadline-time input:disabled { opacity: .45; }

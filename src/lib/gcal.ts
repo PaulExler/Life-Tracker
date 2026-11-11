@@ -206,13 +206,26 @@ type Row = Record<string, any>
 
 function taskEvent(t: Row) {
   if (!t.due_at || t.done_at) return null
-  const start = new Date(t.due_at)
+  const due = new Date(t.due_at)
+  const endOfDay = due.getHours() === 23 && due.getMinutes() === 59
+  // The event ends at the deadline (so 23:59 stays on the right day).
+  const start = new Date(due.getTime() - 15 * 60000)
+  let reminders = twoReminders(start)
+  if (endOfDay) {
+    const eve = new Date(due)
+    eve.setDate(eve.getDate() - 1)
+    eve.setHours(20, 0, 0, 0)
+    const morning = new Date(due)
+    morning.setHours(9, 0, 0, 0)
+    const before = (d: Date) => Math.round((start.getTime() - d.getTime()) / 60000)
+    reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: before(eve) }, { method: 'popup', minutes: before(morning) }] }
+  }
   return {
     summary: `⏰ ${t.title}`,
-    description: `${t.notes ? t.notes + '\n\n' : ''}Deadline — from Life Tracker`,
+    description: `${t.notes ? t.notes + '\n\n' : ''}Deadline${endOfDay ? ' (end of day)' : ''} — from Life Tracker`,
     start: at(start),
-    end: at(new Date(start.getTime() + 15 * 60000)),
-    reminders: twoReminders(start),
+    end: at(due),
+    reminders,
     extendedProperties: MARK,
   }
 }
