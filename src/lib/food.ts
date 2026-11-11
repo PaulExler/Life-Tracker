@@ -103,19 +103,14 @@ export async function offByBarcode(code: string): Promise<OffProduct | null> {
   }
 }
 
+/** Text search via our Edge Function (the Open Food Facts search service can't be called from the browser). */
 export async function offSearch(q: string): Promise<OffProduct[]> {
-  try {
-    const url =
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
-      `&search_simple=1&action=process&json=1&page_size=20&sort_by=unique_scans_n&fields=${OFF_FIELDS}`
-    const r = await fetch(url)
-    if (!r.ok) throw new Error(String(r.status))
-    const j = await r.json()
-    return (j.products ?? []).map(fromOff).filter(Boolean) as OffProduct[]
-  } catch {
-    toast('Product search is not available right now.')
+  const { data, error } = await supabase.functions.invoke('analyze-food', { body: { mode: 'search', q } })
+  if (error || !data?.hits) {
+    toast('Product search is not available right now — try a barcode or Quick entry.')
     return []
   }
+  return (data.hits as unknown[]).map(fromOff).filter(Boolean) as OffProduct[]
 }
 
 // ---------- AI analysis (Supabase Edge Function → Claude) ----------

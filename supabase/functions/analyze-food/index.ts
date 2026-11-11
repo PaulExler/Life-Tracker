@@ -5,6 +5,8 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
 
 const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') })
+// Optional secret FOOD_MODEL switches the model without changing code (e.g. claude-opus-5-5 for more accuracy).
+const MODEL = Deno.env.get('FOOD_MODEL') || 'claude-sonnet-5-5'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -64,11 +66,30 @@ Deno.serve(async (req) => {
     note?: string
     recipe?: string
     totalGrams?: number
+    q?: string
   }
   try {
     body = await req.json()
   } catch {
     return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // Product search (Open Food Facts search service has no browser CORS, so it is proxied here). No AI involved.
+  if (body.mode === 'search') {
+    const q = String(body.q ?? '').trim().slice(0, 100)
+    if (!q) return json({ hits: [] })
+    try {
+      const r = await fetch(
+        `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&page_size=20` +
+          `&fields=code,product_name,product_name_en,product_name_de,brands,nutriments,serving_quantity`,
+        { headers: { 'User-Agent': 'LifeTracker/0.1 (personal app)' } },
+      )
+      if (!r.ok) return json({ error: `Product search unavailable (${r.status})` }, 502)
+      const j = await r.json()
+      return json({ hits: j.hits ?? [] })
+    } catch {
+      return json({ error: 'Product search unavailable' }, 502)
+    }
   }
 
   const grams = Number(body.grams) > 0 ? Number(body.grams) : null
@@ -106,7 +127,7 @@ Deno.serve(async (req) => {
 
   try {
     const response = await client.beta.messages.create({
-      model: 'claude-opus-5-5',
+      model: MODEL,
       max_tokens: 16000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
