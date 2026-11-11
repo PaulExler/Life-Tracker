@@ -185,3 +185,8 @@ a { color: var(--accent); }
 .line-chart polyline { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
 .line-chart circle { fill: var(--accent); }
 .line-chart .axis { fill: var(--muted); font-size: 10px; }
+
+/* mobile fixes */
+.row.wrap > form.row, .row.wrap > input.grow { flex: 1 1 100%; }
+.setno { cursor: default; }
+.setno { display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); box-sizing: border-box; }

@@ -16,11 +16,13 @@ export function TodayWorkouts() {
     Promise.all([
       supabase.from('workouts').select('*').gte('planned_at', a).lt('planned_at', b),
       supabase.from('workouts').select('*').not('started_at', 'is', null).is('finished_at', null),
-    ]).then(([p, r]) => {
-      if (!ok(p) || !ok(r)) return setList([])
+      supabase.from('workouts').select('*').gte('started_at', a).lt('started_at', b),
+    ]).then(([p, r, s]) => {
+      if (!ok(p) || !ok(r) || !ok(s)) return setList([])
       const all = new Map<string, Workout>()
-      for (const w of [...(r.data as Workout[]), ...(p.data as Workout[])]) all.set(w.id, w)
-      setList([...all.values()])
+      for (const w of [...(r.data as Workout[]), ...(p.data as Workout[]), ...(s.data as Workout[])]) all.set(w.id, w)
+      const when = (w: Workout) => w.started_at ?? w.planned_at ?? ''
+      setList([...all.values()].sort((x, y) => when(x).localeCompare(when(y))))
     })
   }, [])
 

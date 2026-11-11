@@ -237,11 +237,23 @@ export function ActiveWorkout({
                     d={d}
                     onEdit={(p) => editDraft(bi, si, p)}
                     onToggle={() => toggleSet(bi, si)}
-                    onRemove={() => removeSet(bi, si)}
                   />
                 ))}
               </div>
-              <button className="link" onClick={() => addSet(bi)}>+ Add set</button>
+              <div className="row">
+                <button className="link" onClick={() => addSet(bi)}>+ Add set</button>
+                {b.sets.length > 0 && (
+                  <button
+                    className="link muted push"
+                    onClick={() => {
+                      const last = b.sets[b.sets.length - 1]
+                      if (!last.saved || confirm('Remove the last set? It is already logged.')) removeSet(bi, b.sets.length - 1)
+                    }}
+                  >
+                    − Remove last set
+                  </button>
+                )}
+              </div>
             </div>
           )
         })
@@ -291,11 +303,11 @@ export function ActiveWorkout({
   )
 }
 
-function SetRow({ n, d, onEdit, onToggle, onRemove }: { n: number; d: Draft; onEdit: (p: Partial<Draft>) => void; onToggle: () => void; onRemove: () => void }) {
+function SetRow({ n, d, onEdit, onToggle }: { n: number; d: Draft; onEdit: (p: Partial<Draft>) => void; onToggle: () => void }) {
   const done = d.saved && !d.dirty
   return (
     <>
-      <button className={`setno ${done ? 'on' : ''}`} onClick={onRemove} aria-label={`Remove set ${n}`} title="Remove set">{n}</button>
+      <span className={`setno ${done ? 'on' : ''}`}>{n}</span>
       <input type="text" inputMode="decimal" value={d.weight} placeholder="0" onChange={(e) => onEdit({ weight: e.target.value })} aria-label="Weight kg" />
       <input type="text" inputMode="numeric" value={d.amount} placeholder="0" onChange={(e) => onEdit({ amount: e.target.value })} aria-label="Reps or seconds" />
       <button className={`tick ${done ? 'on' : ''}`} onClick={onToggle} aria-pressed={done} aria-label={done ? 'Logged' : 'Log set'}>✓</button>

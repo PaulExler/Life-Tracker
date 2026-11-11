@@ -12,7 +12,7 @@ import { dayStr } from './date'
 
 // From Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web).
 // It is public by design (like the Supabase publishable key).
-export const GOOGLE_CLIENT_ID = ''
+export const GOOGLE_CLIENT_ID = '60463300918-c4upilm8ulm1ed8lnhdjdrfd77b4gdhb.apps.googleusercontent.com'
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 const API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
