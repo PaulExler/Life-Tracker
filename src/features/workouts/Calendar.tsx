@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { ok } from '../../lib/toast'
 import { changed, forgetEvent } from '../../lib/gcal'
 import { addDays, dayStr, fmtTime, startOfDay, startOfWeek, WEEKDAY_SHORT, WEEKDAYS_MON_FIRST } from '../../lib/date'
-import { CATEGORY_ICON, choiceOf, fmtDuration, fmtSet, planWorkout, quickStart, startPlanned, updatePlanned } from '../../lib/workouts'
+import { CATEGORY_ICON, choiceOf, fmtDuration, fmtSet, logPast, planWorkout, quickStart, startPlanned, updatePlanned } from '../../lib/workouts'
 import type { Exercise, Routine, Workout, WorkoutSet } from '../../lib/types'
 import { EditIcon, TrashIcon } from '../../components/Icons'
 import { RoutineOptions } from './WorkoutsPage'
@@ -75,6 +75,12 @@ export function WorkoutCalendar({
   async function plan() {
     if (await planWorkout(choice, routines, new Date(`${sel}T${time}`), Number(duration) || 60)) load()
   }
+  async function logDone() {
+    const start = new Date(`${sel}T${time}`)
+    if (start > new Date() && !confirm('That start time is in the future. Log it as done anyway?')) return
+    const w = await logPast(choice, routines, start, Number(duration) || 60)
+    if (w) onEditDone(w)
+  }
   async function start(w: Workout) {
     if (await startPlanned(w)) onStarted()
   }
@@ -144,8 +150,9 @@ export function WorkoutCalendar({
             ))}
           </ul>
         )}
-        {sel >= today && (
+        {(
           <div className="card stack">
+            {sel < today && <div className="small muted">Log a workout you already did on this day:</div>}
             <div className="row wrap">
               <select className="grow" value={choice} onChange={(e) => setChoice(e.target.value)} aria-label="Workout type">
                 <RoutineOptions routines={routines} />
@@ -161,7 +168,14 @@ export function WorkoutCalendar({
                 <input type="number" inputMode="numeric" min={10} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} />
               </label>
             </div>
-            <button className="primary" onClick={plan}>Plan workout</button>
+            <div className="row">
+              {sel <= today && (
+                <button className={`grow ${sel < today ? 'primary' : ''}`} onClick={logDone}>
+                  {sel < today ? 'Log past workout' : 'Log as already done'}
+                </button>
+              )}
+              {sel >= today && <button className="primary grow" onClick={plan}>Plan workout</button>}
+            </div>
           </div>
         )}
       </section>

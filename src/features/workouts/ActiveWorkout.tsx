@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { dayStr, fmtTime } from '../../lib/date'
 import { supabase } from '../../lib/supabase'
 import { ok } from '../../lib/toast'
 import { changed, forgetEvent } from '../../lib/gcal'
@@ -57,6 +58,11 @@ export function ActiveWorkout({
   const [blocks, setBlocks] = useState<Block[] | null>(null)
   const [notes, setNotes] = useState(w.notes ?? '')
   const [grade, setGrade] = useState(w.top_grade ?? '')
+  const [editDate, setEditDate] = useState(w.started_at ? dayStr(new Date(w.started_at)) : '')
+  const [editTime, setEditTime] = useState(w.started_at ? fmtTime(w.started_at) : '')
+  const [editMinutes, setEditMinutes] = useState(
+    w.started_at && w.finished_at ? String(Math.round((new Date(w.finished_at).getTime() - new Date(w.started_at).getTime()) / 60000)) : '60',
+  )
   const [now, setNow] = useState(Date.now())
   const [lastLogged, setLastLogged] = useState<number | null>(null)
   const [adding, setAdding] = useState('')
@@ -95,7 +101,10 @@ export function ActiveWorkout({
                 saved: true,
                 dirty: false,
               }))
-            : draftsFromLast(item?.sets ?? (last.get(id)?.length || 3), last.get(id) ?? [], measure, target)
+            : editMode && saved.length > 0
+              ? // Editing a workout that already has sets: show skipped exercises empty so they aren't saved by accident.
+                draftsFromLast(item?.sets ?? 3, [], measure, null).map((d) => ({ ...d, weight: '', amount: '' }))
+              : draftsFromLast(item?.sets ?? (last.get(id)?.length || 3), last.get(id) ?? [], measure, target)
           return { exercise_id: id, target, last: last.get(id) ?? [], sets }
         }),
       )
@@ -172,10 +181,42 @@ export function ActiveWorkout({
     setAdding('')
   }
 
+  /** Edit mode: save every filled-in set (no need to tick each one), plus date/time/notes. */
   async function saveEdits() {
-    const unsaved = blocks?.reduce((n, b) => n + b.sets.filter((s) => s.dirty || (!s.saved && (s.amount || s.weight))).length, 0) ?? 0
-    if (unsaved && !confirm(`${unsaved} set(s) have changes that are not ticked off and won't be saved. Close anyway?`)) return
-    if (ok(await supabase.from('workouts').update({ notes: notes.trim() || null, top_grade: grade || null }).eq('id', w.id))) onClose()
+    const inserts: Record<string, unknown>[] = []
+    const updates: [string, Record<string, unknown>][] = []
+    for (const b of blocks ?? []) {
+      const measure = exMap.get(b.exercise_id)!.measure
+      b.sets.forEach((d, si) => {
+        if (d.saved && !d.dirty) return
+        if (!d.amount.trim()) return
+        const row = {
+          workout_id: w.id,
+          exercise_id: b.exercise_id,
+          set_no: si + 1,
+          weight_kg: num(d.weight),
+          reps: measure === 'reps' ? num(d.amount) : null,
+          duration_s: measure === 'time' ? num(d.amount) : null,
+        }
+        if (d.id) updates.push([d.id, row])
+        else inserts.push(row)
+      })
+    }
+    if (inserts.length && !ok(await supabase.from('workout_sets').insert(inserts))) return
+    for (const [id, row] of updates) if (!ok(await supabase.from('workout_sets').update(row).eq('id', id))) return
+    const start = new Date(`${editDate}T${editTime}`)
+    const mins = Math.max(1, Number(editMinutes) || 60)
+    const res = await supabase
+      .from('workouts')
+      .update({
+        notes: notes.trim() || null,
+        top_grade: grade || null,
+        ...(Number.isNaN(start.getTime())
+          ? {}
+          : { started_at: start.toISOString(), finished_at: new Date(start.getTime() + mins * 60000).toISOString() }),
+      })
+      .eq('id', w.id)
+    if (ok(res)) onClose()
   }
 
   async function deleteWorkout() {
@@ -315,6 +356,23 @@ export function ActiveWorkout({
             </select>
           </label>
         )}
+        {editMode && (
+          <div className="row">
+            <label className="grow">
+              <span className="label">Date</span>
+              <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+            </label>
+            <label className="grow">
+              <span className="label">Start</span>
+              <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} />
+            </label>
+            <label style={{ width: 84 }}>
+              <span className="label">Minutes</span>
+              <input type="number" inputMode="numeric" min={1} value={editMinutes} onChange={(e) => setEditMinutes(e.target.value)} />
+            </label>
+          </div>
+        )}
+        {editMode && <p className="small muted">“Save changes” saves every set that has a value — no need to tick them.</p>}
         <textarea rows={2} placeholder="Notes (how it felt, …)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         <div className="row">
           <button className="danger-btn" onClick={editMode ? deleteWorkout : discard}>{editMode ? 'Delete' : 'Discard'}</button>

@@ -93,7 +93,23 @@ export async function updatePlanned(w: Workout, choice: string, routines: Routin
   return !res.error
 }
 
-export const choiceOf = (w: Workout) => (w.routine_id ? `r:${w.routine_id}` : `free:${w.category}`)
+/** Record a workout that already happened; returns it so its sets can be entered. */
+export async function logPast(choice: string, routines: Routine[], start: Date, durationMin: number): Promise<Workout | null> {
+  const res = await supabase
+    .from('workouts')
+    .insert({
+      ...fromChoice(choice, routines),
+      started_at: start.toISOString(),
+      finished_at: new Date(start.getTime() + durationMin * 60000).toISOString(),
+      duration_min: durationMin,
+      gcal_dirty: false,
+    })
+    .select()
+    .single()
+  return ok(res) ? (res.data as Workout) : null
+}
+
+export const choiceOf =(w: Workout) => (w.routine_id ? `r:${w.routine_id}` : `free:${w.category}`)
 
 function fromChoice(choice: string, routines: Routine[]) {
   if (choice.startsWith('r:')) {

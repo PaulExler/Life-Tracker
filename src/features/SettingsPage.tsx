@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useSettings } from '../lib/settings'
 import { toast } from '../lib/toast'
 import { disconnect, subscribe, syncNow, type GcalState } from '../lib/gcal'
+import { ExerciseSettings } from './workouts/ExerciseSettings'
 
 export function SettingsPage({ email }: { email: string }) {
   const { settings, save } = useSettings()
@@ -46,6 +47,7 @@ export function SettingsPage({ email }: { email: string }) {
         <button className="primary">Save</button>
       </form>
       <CalendarSettings />
+      <ExerciseSettings />
       <div className="card stack">
         <div className="small muted">Signed in as {email}</div>
         <button onClick={() => supabase.auth.signOut()}>Sign out</button>
