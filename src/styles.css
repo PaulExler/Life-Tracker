@@ -224,3 +224,6 @@ a { color: var(--accent); }
 .cat-row .bar { margin-top: 4px; }
 .cat-row.sel { border-color: var(--accent); background: var(--accent-soft); }
 a.card.row { color: inherit; }
+
+.account-chips .chip.on { background: var(--accent); color: var(--accent-text); }
+.segmented button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

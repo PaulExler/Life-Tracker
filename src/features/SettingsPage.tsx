@@ -4,7 +4,7 @@ import { useSettings } from '../lib/settings'
 import { toast } from '../lib/toast'
 import { disconnect, subscribe, syncNow, type GcalState } from '../lib/gcal'
 import { ExerciseSettings } from './workouts/ExerciseSettings'
-import { CategorySettings } from './money/CategorySettings'
+import { AccountSettings, CategorySettings } from './money/CategorySettings'
 
 export function SettingsPage({ email }: { email: string }) {
   const { settings, save } = useSettings()
@@ -49,6 +49,7 @@ export function SettingsPage({ email }: { email: string }) {
       </form>
       <CalendarSettings />
       <ExerciseSettings />
+      <AccountSettings />
       <CategorySettings />
       <div className="card stack">
         <div className="small muted">Signed in as {email}</div>

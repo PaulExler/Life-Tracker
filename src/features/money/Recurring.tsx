@@ -2,14 +2,24 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ok, toast } from '../../lib/toast'
 import { dayStr } from '../../lib/date'
-import { bookDueRecurring, eur, INTERVAL_LABEL, monthlyEquivalent, nextOnOrAfter, parseAmount } from '../../lib/money'
-import type { Interval, RecurringExpense, SpendCategory } from '../../lib/types'
+import { accountOf, bookDueRecurring, eur, INTERVAL_LABEL, monthlyEquivalent, nextOnOrAfter, parseAmount } from '../../lib/money'
+import type { Interval, RecurringExpense, SpendAccount, SpendCategory } from '../../lib/types'
 import { EditIcon } from '../../components/Icons'
-import { CategoryChips } from './MoneyPage'
+import { AccountChips, CategoryChips } from './MoneyPage'
 
 const fmtDate = (d: string) => new Date(`${d}T00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
-export function RecurringSection({ cats, onBooked }: { cats: SpendCategory[]; onBooked: () => void }) {
+export function RecurringSection({
+  cats,
+  accounts,
+  account,
+  onBooked,
+}: {
+  cats: SpendCategory[]
+  accounts: SpendAccount[]
+  account: string
+  onBooked: () => void
+}) {
   const [items, setItems] = useState<RecurringExpense[] | null>(null)
   const [adding, setAdding] = useState(false)
 
@@ -29,26 +39,43 @@ export function RecurringSection({ cats, onBooked }: { cats: SpendCategory[]; on
     onBooked()
   }
 
-  const perMonth = (items ?? []).filter((r) => r.active).reduce((s, r) => s + monthlyEquivalent(r), 0)
+  const multi = accounts.filter((a) => !a.archived).length > 1
+  const visible = (items ?? []).filter((r) => account === 'all' || accountOf(r.account_id, accounts)?.id === account)
+  const perMonth = visible.filter((r) => r.active).reduce((s, r) => s + monthlyEquivalent(r), 0)
 
   return (
     <section className="stack">
       <h2>Recurring · ≈ {eur(perMonth)} / month</h2>
-      {items && items.length > 0 && (
+      {visible.length > 0 && (
         <ul className="list">
-          {items.map((r) => <RecurringRow key={r.id} r={r} cats={cats} onChanged={changed} />)}
+          {visible.map((r) => (
+            <RecurringRow key={r.id} r={r} cats={cats} accounts={accounts} showAccount={multi && account === 'all'} onChanged={changed} />
+          ))}
         </ul>
       )}
-      {items && items.length === 0 && !adding && <p className="small muted">Add memberships, subscriptions or rent — they're booked automatically when due.</p>}
-      {adding ? <RecurringForm cats={cats} onDone={changed} onCancel={() => setAdding(false)} /> : <button onClick={() => setAdding(true)}>+ Add recurring payment</button>}
+      {items && visible.length === 0 && !adding && <p className="small muted">Add memberships, subscriptions or rent — they're booked automatically when due.</p>}
+      {adding ? <RecurringForm cats={cats} accounts={accounts} defaultAccount={account === 'all' ? null : account} onDone={changed} onCancel={() => setAdding(false)} /> : <button onClick={() => setAdding(true)}>+ Add recurring payment</button>}
     </section>
   )
 }
 
-function RecurringRow({ r, cats, onChanged }: { r: RecurringExpense; cats: SpendCategory[]; onChanged: () => void }) {
+function RecurringRow({
+  r,
+  cats,
+  accounts,
+  showAccount,
+  onChanged,
+}: {
+  r: RecurringExpense
+  cats: SpendCategory[]
+  accounts: SpendAccount[]
+  showAccount: boolean
+  onChanged: () => void
+}) {
   const [editing, setEditing] = useState(false)
   const cat = cats.find((c) => c.id === r.category_id)
-  if (editing) return <li className="item"><RecurringForm r={r} cats={cats} onDone={() => { setEditing(false); onChanged() }} onCancel={() => setEditing(false)} /></li>
+  const acc = accountOf(r.account_id, accounts)
+  if (editing) return <li className="item"><RecurringForm r={r} cats={cats} accounts={accounts} onDone={() => { setEditing(false); onChanged() }} onCancel={() => setEditing(false)} /></li>
   return (
     <li className={`item row ${r.active ? '' : 'done'}`}>
       <span className="emoji">{cat?.icon ?? '🔁'}</span>
@@ -56,6 +83,7 @@ function RecurringRow({ r, cats, onChanged }: { r: RecurringExpense; cats: Spend
         <div className="title">{r.name}</div>
         <div className="small muted">
           {INTERVAL_LABEL[r.interval]} · {r.active ? `next ${fmtDate(r.next_due)}` : 'paused'}
+          {showAccount && acc ? ` · ${acc.icon} ${acc.name}` : ''}
         </div>
       </div>
       <strong>{eur(Number(r.amount))}</strong>
@@ -64,7 +92,22 @@ function RecurringRow({ r, cats, onChanged }: { r: RecurringExpense; cats: Spend
   )
 }
 
-function RecurringForm({ r, cats, onDone, onCancel }: { r?: RecurringExpense; cats: SpendCategory[]; onDone: () => void; onCancel: () => void }) {
+function RecurringForm({
+  r,
+  cats,
+  accounts,
+  defaultAccount,
+  onDone,
+  onCancel,
+}: {
+  r?: RecurringExpense
+  cats: SpendCategory[]
+  accounts: SpendAccount[]
+  defaultAccount?: string | null
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [acc, setAcc] = useState<string | null>(r ? r.account_id : defaultAccount ?? null)
   const [name, setName] = useState(r?.name ?? '')
   const [amount, setAmount] = useState(r ? String(+r.amount).replace('.', ',') : '')
   const [cat, setCat] = useState<string | null>(r?.category_id ?? cats.find((c) => c.name === 'Subscriptions')?.id ?? null)
@@ -79,7 +122,7 @@ function RecurringForm({ r, cats, onDone, onCancel }: { r?: RecurringExpense; ca
     const scheduleChanged = !r || r.start_date !== start || r.interval !== interval
     // New items only book past payments if asked; otherwise the first booking is the next one from today.
     const next_due = scheduleChanged ? nextOnOrAfter(start, interval, backfill ? start : today) : r!.next_due
-    const row = { name: name.trim(), amount: a, category_id: cat, interval, start_date: start, next_due }
+    const row = { name: name.trim(), amount: a, category_id: cat, account_id: acc ?? accountOf(null, accounts)?.id ?? null, interval, start_date: start, next_due }
     const res = r ? await supabase.from('recurring_expenses').update(row).eq('id', r.id) : await supabase.from('recurring_expenses').insert(row)
     if (ok(res)) onDone()
   }
@@ -97,6 +140,7 @@ function RecurringForm({ r, cats, onDone, onCancel }: { r?: RecurringExpense; ca
 
   return (
     <div className={r ? 'stack' : 'card stack'}>
+      <AccountChips accounts={accounts} value={acc} onChange={setAcc} />
       <input placeholder="Name, e.g. Gym membership" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
       <div className="row">
         <span className="muted">€</span>

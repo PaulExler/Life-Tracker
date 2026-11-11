@@ -142,13 +142,22 @@ export interface SpendCategory {
   archived: boolean
 }
 
-export type Interval = 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+export interface SpendAccount {
+  id: string
+  name: string
+  icon: string
+  sort: number
+  archived: boolean
+}
+
+export type Interval ='weekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export interface RecurringExpense {
   id: string
   name: string
   amount: number
   category_id: string | null
+  account_id: string | null
   interval: Interval
   start_date: string
   next_due: string
@@ -163,6 +172,7 @@ export interface Expense {
   category_id: string | null
   note: string | null
   recurring_id: string | null
+  account_id: string | null
 }
 
 export interface Settings {
