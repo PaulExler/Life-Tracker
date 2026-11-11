@@ -3,25 +3,30 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { onToast } from './lib/toast'
 import { SettingsProvider } from './lib/settings'
+import { startup as startCalendar } from './lib/gcal'
 import { Login } from './features/Login'
 import { TaskList } from './features/Tasks'
 import { HabitsPage, TodayHabits } from './features/Habits'
 import { WaterCard, WaterPage } from './features/Water'
 import { SettingsPage } from './features/SettingsPage'
-import { CheckIcon, DropIcon, GearIcon, RepeatIcon, SunIcon } from './components/Icons'
+import { WorkoutsPage } from './features/workouts/WorkoutsPage'
+import { TodayWorkouts } from './features/workouts/TodayWorkouts'
+import { CalendarBanner } from './components/CalendarBanner'
+import { CheckIcon, DropIcon, DumbbellIcon, GearIcon, RepeatIcon, SunIcon } from './components/Icons'
 
 const TABS = [
   { id: 'today', label: 'Today', icon: <SunIcon /> },
+  { id: 'workouts', label: 'Workouts', icon: <DumbbellIcon /> },
   { id: 'tasks', label: 'Tasks', icon: <CheckIcon /> },
   { id: 'habits', label: 'Habits', icon: <RepeatIcon /> },
   { id: 'water', label: 'Water', icon: <DropIcon /> },
-  { id: 'settings', label: 'Settings', icon: <GearIcon /> },
 ] as const
-type TabId = (typeof TABS)[number]['id']
+type TabId = (typeof TABS)[number]['id'] | 'settings'
 
 const tabFromHash = (): TabId => {
   const h = location.hash.slice(1)
-  return (TABS.find((t) => t.id === h)?.id ?? 'today') as TabId
+  if (h === 'settings') return 'settings'
+  return TABS.find((t) => t.id === h)?.id ?? 'today'
 }
 
 export default function App() {
@@ -38,6 +43,11 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [])
+
+  const userId = session?.user.id
+  useEffect(() => {
+    if (userId) startCalendar()
+  }, [userId])
 
   useEffect(() => {
     const f = () => setTab(tabFromHash())
@@ -59,22 +69,31 @@ export default function App() {
   if (!ready) return null
   if (!session) return <>{<Login />}{toastEl}</>
 
-  const title = TABS.find((t) => t.id === tab)!.label
   let page: ReactNode
+  let title: string
   switch (tab) {
     case 'today':
+      title = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
       page = <TodayPage />
       break
+    case 'workouts':
+      title = 'Workouts'
+      page = <WorkoutsPage />
+      break
     case 'tasks':
+      title = 'Tasks'
       page = <TaskList />
       break
     case 'habits':
+      title = 'Habits'
       page = <HabitsPage />
       break
     case 'water':
+      title = 'Water'
       page = <WaterPage />
       break
     case 'settings':
+      title = 'Settings'
       page = <SettingsPage email={session.user.email ?? ''} />
       break
   }
@@ -82,9 +101,13 @@ export default function App() {
   return (
     <SettingsProvider userId={session.user.id}>
       <div className="app">
-        <header className="top">
-          <h1>{tab === 'today' ? new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : title}</h1>
+        <header className="top row">
+          <h1 className="grow">{title}</h1>
+          <a href="#settings" className={`icon-link ${tab === 'settings' ? 'active' : ''}`} aria-label="Settings">
+            <GearIcon />
+          </a>
         </header>
+        <CalendarBanner />
         <main>{page}</main>
         <nav className="tabs">
           {TABS.map((t) => (
@@ -103,6 +126,7 @@ export default function App() {
 function TodayPage() {
   return (
     <div className="stack">
+      <Section title="Workout"><TodayWorkouts /></Section>
       <Section title="Water"><WaterCard /></Section>
       <Section title="Habits"><TodayHabits /></Section>
       <Section title="Due today & overdue"><TaskList mode="today" /></Section>

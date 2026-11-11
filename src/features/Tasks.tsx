@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { ok } from '../lib/toast'
+import { changed, forgetEvent } from '../lib/gcal'
 import { addDays, fmtDue, fromLocalInput, startOfDay, toLocalInput } from '../lib/date'
 import type { Task } from '../lib/types'
 import { EditIcon, TrashIcon } from '../components/Icons'
@@ -46,18 +47,24 @@ export function TaskList({ mode = 'all' }: { mode?: 'all' | 'today' }) {
       setDone((d) => d.filter((x) => x.id !== t.id))
       setOpen((o) => [...o, { ...t, done_at }].sort(sortOpen))
     }
-    if (!ok(await supabase.from('tasks').update({ done_at }).eq('id', t.id))) load()
+    if (ok(await supabase.from('tasks').update({ done_at, gcal_dirty: true }).eq('id', t.id))) changed()
+    else load()
   }
 
   async function remove(t: Task) {
     if (!confirm(`Delete "${t.title}"?`)) return
     setOpen((o) => o.filter((x) => x.id !== t.id))
     setDone((d) => d.filter((x) => x.id !== t.id))
-    if (!ok(await supabase.from('tasks').delete().eq('id', t.id))) load()
+    await forgetEvent(t.gcal_event_id)
+    if (ok(await supabase.from('tasks').delete().eq('id', t.id))) changed()
+    else load()
   }
 
   async function save(t: Task, patch: Partial<Task>) {
-    if (ok(await supabase.from('tasks').update(patch).eq('id', t.id))) load()
+    if (ok(await supabase.from('tasks').update({ ...patch, gcal_dirty: true }).eq('id', t.id))) {
+      load()
+      changed()
+    }
   }
 
   return (
@@ -107,6 +114,7 @@ function TaskForm({ onAdded }: { onAdded: () => void }) {
       setTitle('')
       setDue('')
       onAdded()
+      changed()
     }
   }
 

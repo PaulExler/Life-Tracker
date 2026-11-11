@@ -30,6 +30,11 @@ export const RepeatIcon = () => (
     <path d="M21 13v2a3 3 0 0 1-3 3H3" />
   </svg>
 )
+export const DumbbellIcon = () => (
+  <svg {...base}>
+    <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11" />
+  </svg>
+)
 export const DropIcon = () => (
   <svg {...base}>
     <path d="M12 2.7s6 6.4 6 11.3a6 6 0 0 1-12 0c0-4.9 6-11.3 6-11.3z" />

@@ -118,3 +118,70 @@ button.icon { background: none; border: 0; padding: 6px; min-height: 0; color: v
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 20;
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; max-width: calc(100% - 32px); font-size: .9rem;
 }
+
+/* ---------- step 2: workouts & calendar ---------- */
+:root { --lift: #ea580c; --boulder: #7c3aed; }
+@media (prefers-color-scheme: dark) { :root { --lift: #fb923c; --boulder: #a78bfa; } }
+
+select {
+  font: inherit; color: inherit; width: 100%; min-height: 44px; padding: 8px 10px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+}
+.row > select { width: auto; }
+.row > select.grow { width: 100%; }
+a { color: var(--accent); }
+.emoji { font-size: 1.4rem; line-height: 1; }
+.top.row { align-items: center; }
+.icon-link { color: var(--muted); display: flex; padding: 6px; }
+.icon-link.active { color: var(--accent); }
+.danger-btn { color: var(--danger); }
+.time-input { width: 110px; min-height: 36px; padding: 4px 8px; }
+
+.banner {
+  display: block; width: calc(100% - 32px); margin: 0 16px 10px; text-align: left;
+  background: var(--accent-soft); color: var(--accent); border: 0; font-weight: 600; font-size: .9rem;
+}
+
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 3px; }
+.segmented button { border: 0; background: none; min-height: 36px; padding: 6px; border-radius: 9px; color: var(--muted); }
+.segmented button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-head { text-align: center; }
+.cal-day {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px;
+  min-height: 48px; padding: 6px 0 4px; border-radius: 10px; background: none; border: 1px solid transparent; font-size: .9rem;
+}
+.cal-day.other { opacity: .4; }
+.cal-day.today span:first-child { color: var(--accent); font-weight: 700; }
+.cal-day.sel { border-color: var(--accent); background: var(--accent-soft); }
+.dots { display: flex; gap: 3px; min-height: 7px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--lift); vertical-align: middle; }
+.dot.bouldering { border-color: var(--boulder); }
+.dot.done, .dot.active { background: var(--lift); }
+.dot.bouldering.done, .dot.bouldering.active { background: var(--boulder); }
+.dot.missed { border-color: var(--muted); border-style: dashed; }
+.legend { gap: 14px; }
+.legend .dot { margin-right: 4px; }
+
+.badge.planned { background: var(--bg); color: var(--muted); }
+.badge.missed { background: var(--bg); color: var(--danger); }
+.badge.active { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
+.badge.done { background: var(--accent-soft); color: var(--accent); }
+
+.sets { display: grid; grid-template-columns: 40px 1fr 1fr 48px; gap: 6px; align-items: center; }
+.sets input { min-height: 40px; padding: 6px 10px; text-align: center; }
+.setno { min-height: 40px; padding: 0; border-radius: 50%; width: 36px; height: 36px; font-size: .85rem; color: var(--muted); }
+.setno.on { color: var(--accent); border-color: var(--accent); }
+.tick { min-height: 40px; padding: 0; font-weight: 700; color: var(--muted); }
+.tick.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+.chart.wide { grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.track.stacked { display: flex; flex-direction: column-reverse; }
+.track.stacked .fill { position: static; opacity: 1; border-radius: 0; }
+.fill.lifting { background: var(--lift); }
+.fill.bouldering { background: var(--boulder); }
+.line-chart { width: 100%; height: auto; }
+.line-chart polyline { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.line-chart circle { fill: var(--accent); }
+.line-chart .axis { fill: var(--muted); font-size: 10px; }

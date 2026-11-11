@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSettings } from '../lib/settings'
 import { toast } from '../lib/toast'
+import { disconnect, subscribe, syncNow, type GcalState } from '../lib/gcal'
 
 export function SettingsPage({ email }: { email: string }) {
   const { settings, save } = useSettings()
@@ -44,11 +45,42 @@ export function SettingsPage({ email }: { email: string }) {
         </label>
         <button className="primary">Save</button>
       </form>
+      <CalendarSettings />
       <div className="card stack">
         <div className="small muted">Signed in as {email}</div>
         <button onClick={() => supabase.auth.signOut()}>Sign out</button>
       </div>
-      <p className="small muted center">Coming next: workouts &amp; Google Calendar, food, spending.</p>
+      <p className="small muted center">Coming next: food &amp; calories, spending.</p>
+    </div>
+  )
+}
+
+function CalendarSettings() {
+  const [s, setS] = useState<GcalState | null>(null)
+  useEffect(() => subscribe(setS), [])
+  if (!s) return null
+  return (
+    <div className="card stack">
+      <h3>Google Calendar</h3>
+      {!s.configured ? (
+        <p className="small muted">Not set up yet — a Google Client ID needs to be added to the app.</p>
+      ) : s.connected ? (
+        <>
+          <p className="small muted">
+            Planned workouts, task deadlines and habits with a time are added to your Google Calendar on this device, with
+            reminders the evening before (20:00) and 1 hour before.
+          </p>
+          <div className="row">
+            <button className="grow" onClick={() => syncNow()} disabled={s.syncing}>{s.syncing ? 'Syncing…' : 'Sync now'}</button>
+            <button onClick={() => disconnect()}>Disconnect</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="small muted">Add planned workouts, task deadlines and habits to your Google Calendar so Google reminds you.</p>
+          <button className="primary" onClick={() => syncNow()}>Connect Google Calendar</button>
+        </>
+      )}
     </div>
   )
 }

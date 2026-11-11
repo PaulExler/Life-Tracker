@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { ok } from '../lib/toast'
+import { changed } from '../lib/gcal'
 import { addDays, dayStr, startOfDay, startOfWeek, WEEKDAY_SHORT, WEEKDAYS_MON_FIRST } from '../lib/date'
 import type { Habit, HabitLog } from '../lib/types'
 import { TrashIcon } from '../components/Icons'
@@ -84,7 +85,17 @@ export function HabitsPage() {
 
   async function archive(h: Habit) {
     if (!confirm(`Remove habit "${h.name}"? Its history is kept.`)) return
-    if (ok(await supabase.from('habits').update({ archived: true }).eq('id', h.id))) load()
+    if (ok(await supabase.from('habits').update({ archived: true, gcal_dirty: true }).eq('id', h.id))) {
+      load()
+      changed()
+    }
+  }
+
+  async function setTime(h: Habit, time: string) {
+    if (ok(await supabase.from('habits').update({ time: time || null, gcal_dirty: true }).eq('id', h.id))) {
+      load()
+      changed()
+    }
   }
 
   return (
@@ -103,9 +114,18 @@ export function HabitsPage() {
                   <div className="title">{h.name}</div>
                   <div className="small muted">
                     {h.days.length === 7 ? 'Every day' : WEEKDAYS_MON_FIRST.filter((d) => h.days.includes(d)).map((d) => WEEKDAY_SHORT[d]).join(' · ')}
+                    {h.time && ` at ${h.time}`}
                     {' — '}streak {streak(h, done)}
                   </div>
                 </div>
+                <input
+                  type="time"
+                  className="time-input"
+                  defaultValue={h.time ?? ''}
+                  onBlur={(e) => e.target.value !== (h.time ?? '') && setTime(h, e.target.value)}
+                  aria-label="Reminder time"
+                  title="Reminder time (Google Calendar)"
+                />
                 <button className="icon" onClick={() => archive(h)} aria-label="Remove"><TrashIcon /></button>
               </div>
               <div className="week">
@@ -140,14 +160,17 @@ export function HabitsPage() {
 function HabitForm({ onAdded }: { onAdded: () => void }) {
   const [name, setName] = useState('')
   const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
+  const [time, setTime] = useState('')
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!name.trim() || days.length === 0) return
-    if (ok(await supabase.from('habits').insert({ name: name.trim(), days }))) {
+    if (ok(await supabase.from('habits').insert({ name: name.trim(), days, time: time || null }))) {
       setName('')
       setDays([0, 1, 2, 3, 4, 5, 6])
+      setTime('')
       onAdded()
+      changed()
     }
   }
 
@@ -166,7 +189,13 @@ function HabitForm({ onAdded }: { onAdded: () => void }) {
             {WEEKDAY_SHORT[d]}
           </button>
         ))}
-        <button className="primary push" disabled={!name.trim() || days.length === 0}>Add</button>
+      </div>
+      <div className="row">
+        <label className="grow">
+          <span className="label">Reminder time (optional, goes to Google Calendar)</span>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        </label>
+        <button className="primary" disabled={!name.trim() || days.length === 0}>Add</button>
       </div>
     </form>
   )
