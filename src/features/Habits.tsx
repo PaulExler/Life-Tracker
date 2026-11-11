@@ -4,7 +4,7 @@ import { ok } from '../lib/toast'
 import { changed } from '../lib/gcal'
 import { addDays, dayStr, startOfDay, startOfWeek, WEEKDAY_SHORT, WEEKDAYS_MON_FIRST } from '../lib/date'
 import type { Habit, HabitLog } from '../lib/types'
-import { TrashIcon } from '../components/Icons'
+import { EditIcon, TrashIcon } from '../components/Icons'
 
 const HISTORY_DAYS = 90
 
@@ -82,6 +82,7 @@ export function HabitsPage() {
   const { habits, done, loaded, load, toggle } = useHabits()
   const week = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(), i))
   const todayStr = dayStr()
+  const [editing, setEditing] = useState<string | null>(null)
 
   async function archive(h: Habit) {
     if (!confirm(`Remove habit "${h.name}"? Its history is kept.`)) return
@@ -91,12 +92,6 @@ export function HabitsPage() {
     }
   }
 
-  async function setTime(h: Habit, time: string) {
-    if (ok(await supabase.from('habits').update({ time: time || null, gcal_dirty: true }).eq('id', h.id))) {
-      load()
-      changed()
-    }
-  }
 
   return (
     <div className="stack">
@@ -109,6 +104,10 @@ export function HabitsPage() {
         <ul className="list">
           {habits.map((h) => (
             <li key={h.id} className="item stack">
+              {editing === h.id ? (
+                <HabitForm habit={h} onAdded={() => { setEditing(null); load() }} onCancel={() => setEditing(null)} />
+              ) : (
+              <>
               <div className="row">
                 <div className="grow">
                   <div className="title">{h.name}</div>
@@ -118,14 +117,7 @@ export function HabitsPage() {
                     {' — '}streak {streak(h, done)}
                   </div>
                 </div>
-                <input
-                  type="time"
-                  className="time-input"
-                  defaultValue={h.time ?? ''}
-                  onBlur={(e) => e.target.value !== (h.time ?? '') && setTime(h, e.target.value)}
-                  aria-label="Reminder time"
-                  title="Reminder time (Google Calendar)"
-                />
+                <button className="icon" onClick={() => setEditing(h.id)} aria-label="Edit"><EditIcon /></button>
                 <button className="icon" onClick={() => archive(h)} aria-label="Remove"><TrashIcon /></button>
               </div>
               <div className="week">
@@ -149,6 +141,8 @@ export function HabitsPage() {
                   )
                 })}
               </div>
+              </>
+              )}
             </li>
           ))}
         </ul>
@@ -157,26 +151,32 @@ export function HabitsPage() {
   )
 }
 
-function HabitForm({ onAdded }: { onAdded: () => void }) {
-  const [name, setName] = useState('')
-  const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
-  const [time, setTime] = useState('')
+function HabitForm({ habit, onAdded, onCancel }: { habit?: Habit; onAdded: () => void; onCancel?: () => void }) {
+  const [name, setName] = useState(habit?.name ?? '')
+  const [days, setDays] = useState<number[]>(habit?.days ?? [0, 1, 2, 3, 4, 5, 6])
+  const [time, setTime] = useState(habit?.time ?? '')
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!name.trim() || days.length === 0) return
-    if (ok(await supabase.from('habits').insert({ name: name.trim(), days, time: time || null }))) {
-      setName('')
-      setDays([0, 1, 2, 3, 4, 5, 6])
-      setTime('')
+    const row = { name: name.trim(), days, time: time || null }
+    const res = habit
+      ? await supabase.from('habits').update({ ...row, gcal_dirty: true }).eq('id', habit.id)
+      : await supabase.from('habits').insert(row)
+    if (ok(res)) {
+      if (!habit) {
+        setName('')
+        setDays([0, 1, 2, 3, 4, 5, 6])
+        setTime('')
+      }
       onAdded()
       changed()
     }
   }
 
   return (
-    <form className="card stack" onSubmit={submit}>
-      <input placeholder="New habit, e.g. Piano 20 min" value={name} onChange={(e) => setName(e.target.value)} />
+    <form className={habit ? 'stack' : 'card stack'} onSubmit={submit}>
+      <input placeholder="New habit, e.g. Piano 20 min" value={name} onChange={(e) => setName(e.target.value)} aria-label="Habit name" />
       <div className="row wrap">
         {WEEKDAYS_MON_FIRST.map((d) => (
           <button
@@ -195,7 +195,8 @@ function HabitForm({ onAdded }: { onAdded: () => void }) {
           <span className="label">Reminder time (optional, goes to Google Calendar)</span>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </label>
-        <button className="primary" disabled={!name.trim() || days.length === 0}>Add</button>
+        {onCancel && <button type="button" onClick={onCancel}>Cancel</button>}
+        <button className="primary" disabled={!name.trim() || days.length === 0}>{habit ? 'Save' : 'Add'}</button>
       </div>
     </form>
   )

@@ -4,7 +4,7 @@ import { ok } from '../lib/toast'
 import { addDays, dayStr, fmtTime, startOfDay, WEEKDAY_SHORT } from '../lib/date'
 import { useSettings } from '../lib/settings'
 import type { WaterLog } from '../lib/types'
-import { TrashIcon } from '../components/Icons'
+import { EditIcon, TrashIcon } from '../components/Icons'
 
 const QUICK = [250, 330, 500]
 
@@ -72,15 +72,51 @@ export function WaterCard({ onChange, showEntries = false }: { onChange?: () => 
       {showEntries && logs.length > 0 && (
         <ul className="list compact">
           {logs.map((l) => (
-            <li key={l.id} className="item row">
-              <span className="muted">{fmtTime(l.logged_at)}</span>
-              <span className="grow">{l.amount_ml} ml</span>
-              <button className="icon" onClick={() => remove(l.id)} aria-label="Delete"><TrashIcon /></button>
-            </li>
+            <WaterRow key={l.id} log={l} onRemove={() => remove(l.id)} onSaved={(n) => {
+              setLogs((ls) => ls.map((x) => (x.id === n.id ? n : x)).sort((a, b) => b.logged_at.localeCompare(a.logged_at)))
+              onChange?.()
+            }} />
           ))}
         </ul>
       )}
     </div>
+  )
+}
+
+function WaterRow({ log: l, onRemove, onSaved }: { log: WaterLog; onRemove: () => void; onSaved: (l: WaterLog) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [amount, setAmount] = useState(String(l.amount_ml))
+  const [time, setTime] = useState(fmtTime(l.logged_at))
+
+  async function save() {
+    const ml = Math.round(Number(amount))
+    if (!(ml > 0)) return
+    const d = new Date(l.logged_at)
+    const [hh, mm] = time.split(':').map(Number)
+    if (!Number.isNaN(hh)) d.setHours(hh, mm || 0, 0, 0)
+    const res = await supabase.from('water_logs').update({ amount_ml: ml, logged_at: d.toISOString() }).eq('id', l.id).select().single()
+    if (ok(res) && res.data) {
+      onSaved(res.data as WaterLog)
+      setEditing(false)
+    }
+  }
+
+  if (editing)
+    return (
+      <li className="item row">
+        <input type="time" className="time-input" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" />
+        <input className="grow" type="number" inputMode="numeric" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount ml" />
+        <button onClick={() => setEditing(false)}>Cancel</button>
+        <button className="primary" onClick={save}>Save</button>
+      </li>
+    )
+  return (
+    <li className="item row">
+      <span className="muted">{fmtTime(l.logged_at)}</span>
+      <span className="grow">{l.amount_ml} ml</span>
+      <button className="icon" onClick={() => setEditing(true)} aria-label="Edit"><EditIcon /></button>
+      <button className="icon" onClick={onRemove} aria-label="Delete"><TrashIcon /></button>
+    </li>
   )
 }
 

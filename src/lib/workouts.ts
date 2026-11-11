@@ -84,6 +84,17 @@ export async function planWorkout(choice: string, routines: Routine[], plannedAt
   return !res.error
 }
 
+export async function updatePlanned(w: Workout, choice: string, routines: Routine[], plannedAt: Date, durationMin: number) {
+  const res = await supabase
+    .from('workouts')
+    .update({ ...fromChoice(choice, routines), planned_at: plannedAt.toISOString(), duration_min: durationMin, gcal_dirty: true })
+    .eq('id', w.id)
+  if (ok(res)) changed()
+  return !res.error
+}
+
+export const choiceOf = (w: Workout) => (w.routine_id ? `r:${w.routine_id}` : `free:${w.category}`)
+
 function fromChoice(choice: string, routines: Routine[]) {
   if (choice.startsWith('r:')) {
     const r = routines.find((x) => x.id === choice.slice(2))

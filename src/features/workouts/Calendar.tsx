@@ -3,9 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { ok } from '../../lib/toast'
 import { changed, forgetEvent } from '../../lib/gcal'
 import { addDays, dayStr, fmtTime, startOfDay, startOfWeek, WEEKDAY_SHORT, WEEKDAYS_MON_FIRST } from '../../lib/date'
-import { CATEGORY_ICON, fmtDuration, fmtSet, planWorkout, quickStart, startPlanned } from '../../lib/workouts'
+import { CATEGORY_ICON, choiceOf, fmtDuration, fmtSet, planWorkout, quickStart, startPlanned, updatePlanned } from '../../lib/workouts'
 import type { Exercise, Routine, Workout, WorkoutSet } from '../../lib/types'
-import { TrashIcon } from '../../components/Icons'
+import { EditIcon, TrashIcon } from '../../components/Icons'
 import { RoutineOptions } from './WorkoutsPage'
 
 const wDay = (w: Workout) => dayStr(new Date(w.started_at ?? w.planned_at!))
@@ -17,7 +17,17 @@ export function workoutStatus(w: Workout): 'done' | 'active' | 'missed' | 'plann
   return 'planned'
 }
 
-export function WorkoutCalendar({ routines, exercises, onStarted }: { routines: Routine[]; exercises: Exercise[]; onStarted: () => void }) {
+export function WorkoutCalendar({
+  routines,
+  exercises,
+  onStarted,
+  onEditDone,
+}: {
+  routines: Routine[]
+  exercises: Exercise[]
+  onStarted: () => void
+  onEditDone: (w: Workout) => void
+}) {
   const [month, setMonth] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -130,7 +140,7 @@ export function WorkoutCalendar({ routines, exercises, onStarted }: { routines: 
         {selWorkouts.length > 0 && (
           <ul className="list">
             {selWorkouts.map((w) => (
-              <WorkoutRow key={w.id} w={w} exercises={exercises} onStart={start} onRemove={remove} />
+              <WorkoutRow key={w.id} w={w} exercises={exercises} routines={routines} onStart={start} onRemove={remove} onEditDone={onEditDone} onChanged={load} />
             ))}
           </ul>
         )}
@@ -162,15 +172,33 @@ export function WorkoutCalendar({ routines, exercises, onStarted }: { routines: 
 function WorkoutRow({
   w,
   exercises,
+  routines,
   onStart,
   onRemove,
+  onEditDone,
+  onChanged,
 }: {
   w: Workout
   exercises: Exercise[]
+  routines: Routine[]
   onStart: (w: Workout) => void
   onRemove: (w: Workout) => void
+  onEditDone: (w: Workout) => void
+  onChanged: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  if (editing)
+    return (
+      <PlanEditor
+        w={w}
+        routines={routines}
+        onDone={() => {
+          setEditing(false)
+          onChanged()
+        }}
+      />
+    )
   const status = workoutStatus(w)
   const when = w.started_at ?? w.planned_at!
   return (
@@ -190,10 +218,53 @@ function WorkoutRow({
       </div>
       <div className="row end">
         {status === 'done' && <button className="link" onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Show'} sets</button>}
-        {(status === 'planned' || status === 'missed') && <button className="primary" onClick={() => onStart(w)}>Start</button>}
+        {status === 'done' && <button className="icon" onClick={() => onEditDone(w)} aria-label="Edit workout"><EditIcon /></button>}
+        {(status === 'planned' || status === 'missed') && (
+          <>
+            <button className="icon" onClick={() => setEditing(true)} aria-label="Edit plan"><EditIcon /></button>
+            <button className="primary" onClick={() => onStart(w)}>Start</button>
+          </>
+        )}
         {status !== 'active' && <button className="icon" onClick={() => onRemove(w)} aria-label="Delete"><TrashIcon /></button>}
       </div>
       {open && <WorkoutSummary workout={w} exercises={exercises} />}
+    </li>
+  )
+}
+
+function PlanEditor({ w, routines, onDone }: { w: Workout; routines: Routine[]; onDone: () => void }) {
+  const [choice, setChoice] = useState(choiceOf(w))
+  const [date, setDate] = useState(dayStr(new Date(w.planned_at!)))
+  const [time, setTime] = useState(fmtTime(w.planned_at!))
+  const [duration, setDuration] = useState(String(w.duration_min))
+
+  async function save() {
+    if (await updatePlanned(w, choice, routines, new Date(`${date}T${time}`), Number(duration) || 60)) onDone()
+  }
+
+  return (
+    <li className="item stack">
+      <select value={choice} onChange={(e) => setChoice(e.target.value)} aria-label="Workout type">
+        <RoutineOptions routines={routines} />
+      </select>
+      <div className="row">
+        <label className="grow">
+          <span className="label">Date</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <label className="grow">
+          <span className="label">Time</span>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        </label>
+      </div>
+      <label>
+        <span className="label">Minutes</span>
+        <input type="number" inputMode="numeric" min={10} step={5} value={duration} onChange={(e) => setDuration(e.target.value)} />
+      </label>
+      <div className="row end">
+        <button onClick={onDone}>Cancel</button>
+        <button className="primary" disabled={!date || !time} onClick={save}>Save</button>
+      </div>
     </li>
   )
 }

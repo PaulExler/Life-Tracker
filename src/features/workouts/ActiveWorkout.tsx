@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ok } from '../../lib/toast'
-import { changed } from '../../lib/gcal'
+import { changed, forgetEvent } from '../../lib/gcal'
 import { CATEGORY_ICON, createExercise, FONT_GRADES, fmtSet, lastSets } from '../../lib/workouts'
 import type { Exercise, Measure, Routine, Workout, WorkoutSet } from '../../lib/types'
 import { TrashIcon } from '../../components/Icons'
@@ -52,6 +52,7 @@ export function ActiveWorkout({
   onExercisesChanged: () => Promise<unknown>
   onClose: () => void
 }) {
+  const editMode = !!w.finished_at
   const exMap = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
   const [blocks, setBlocks] = useState<Block[] | null>(null)
   const [notes, setNotes] = useState(w.notes ?? '')
@@ -171,6 +172,21 @@ export function ActiveWorkout({
     setAdding('')
   }
 
+  async function saveEdits() {
+    const unsaved = blocks?.reduce((n, b) => n + b.sets.filter((s) => s.dirty || (!s.saved && (s.amount || s.weight))).length, 0) ?? 0
+    if (unsaved && !confirm(`${unsaved} set(s) have changes that are not ticked off and won't be saved. Close anyway?`)) return
+    if (ok(await supabase.from('workouts').update({ notes: notes.trim() || null, top_grade: grade || null }).eq('id', w.id))) onClose()
+  }
+
+  async function deleteWorkout() {
+    if (!confirm('Delete this workout and all its sets? This cannot be undone.')) return
+    await forgetEvent(w.gcal_event_id)
+    if (ok(await supabase.from('workouts').delete().eq('id', w.id))) {
+      changed()
+      onClose()
+    }
+  }
+
   async function finish() {
     const unsaved = blocks?.reduce((n, b) => n + b.sets.filter((s) => !s.saved && (s.amount || s.weight)).length, 0) ?? 0
     if (unsaved && !confirm(`${unsaved} set(s) are not ticked off and won't be saved. Finish anyway?`)) return
@@ -204,10 +220,16 @@ export function ActiveWorkout({
         <div className="grow">
           <div className="title">{w.title}</div>
           <div className="small muted">
-            {mmss(elapsed)} elapsed{lastLogged && ` · rest ${mmss(now - lastLogged)}`}
+            {editMode ? (
+              `Editing · ${new Date(w.started_at!).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`
+            ) : (
+              <>
+                {mmss(elapsed)} elapsed{lastLogged && ` · rest ${mmss(now - lastLogged)}`}
+              </>
+            )}
           </div>
         </div>
-        <button className="primary" onClick={finish}>Finish</button>
+        <button className="primary" onClick={editMode ? saveEdits : finish}>{editMode ? 'Done' : 'Finish'}</button>
       </div>
 
       {!blocks ? (
@@ -295,8 +317,8 @@ export function ActiveWorkout({
         )}
         <textarea rows={2} placeholder="Notes (how it felt, …)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         <div className="row">
-          <button className="danger-btn" onClick={discard}>Discard</button>
-          <button className="primary grow" onClick={finish}>Finish workout</button>
+          <button className="danger-btn" onClick={editMode ? deleteWorkout : discard}>{editMode ? 'Delete' : 'Discard'}</button>
+          <button className="primary grow" onClick={editMode ? saveEdits : finish}>{editMode ? 'Save changes' : 'Finish workout'}</button>
         </div>
       </div>
     </div>

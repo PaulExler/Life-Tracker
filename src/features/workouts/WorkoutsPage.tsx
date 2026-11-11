@@ -13,6 +13,7 @@ export function WorkoutsPage() {
   const [routines, setRoutines] = useState<Routine[]>([])
   const [active, setActive] = useState<Workout | null | undefined>(undefined)
   const [view, setView] = useState<View>('calendar')
+  const [editing, setEditing] = useState<Workout | null>(null)
 
   const reloadExercises = useCallback(() => loadExercises().then(setExercises), [])
   const reloadRoutines = useCallback(() => loadRoutines().then(setRoutines), [])
@@ -25,6 +26,18 @@ export function WorkoutsPage() {
   }, [reloadExercises, reloadRoutines, reloadActive])
 
   if (active === undefined) return <p className="muted">Loading…</p>
+
+  if (editing)
+    return (
+      <ActiveWorkout
+        key={editing.id}
+        workout={editing}
+        exercises={exercises}
+        routines={routines}
+        onExercisesChanged={reloadExercises}
+        onClose={() => setEditing(null)}
+      />
+    )
 
   if (active)
     return (
@@ -47,7 +60,7 @@ export function WorkoutsPage() {
           </button>
         ))}
       </div>
-      {view === 'calendar' && <WorkoutCalendar routines={routines} exercises={exercises} onStarted={reloadActive} />}
+      {view === 'calendar' && <WorkoutCalendar routines={routines} exercises={exercises} onStarted={reloadActive} onEditDone={setEditing} />}
       {view === 'routines' && (
         <RoutinesView routines={routines} exercises={exercises} onChanged={reloadRoutines} onExercisesChanged={reloadExercises} />
       )}
