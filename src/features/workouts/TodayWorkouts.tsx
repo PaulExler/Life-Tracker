@@ -29,9 +29,10 @@ export function TodayWorkouts() {
   if (!list) return <p className="muted">Loading…</p>
   if (list.length === 0)
     return (
-      <p className="muted">
-        Rest day. <a href="#workouts">Plan or start a workout</a>
-      </p>
+      <div className="card rest-day">
+        <span className="muted">Rest day</span>
+        <a href="#workouts" className="btn-secondary">Plan or start a workout</a>
+      </div>
     )
   return (
     <ul className="list">

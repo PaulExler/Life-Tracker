@@ -96,7 +96,7 @@ export function MoneyPage() {
   return (
     <div className="stack">
       {multi && (
-        <div className="segmented" role="tablist" aria-label="Account">
+        <div className="segmented scroll" role="tablist" aria-label="Account">
           <button role="tab" aria-selected={account === 'all'} className={account === 'all' ? 'on' : ''} onClick={() => setAccount('all')}>All</button>
           {activeAccounts.map((a) => (
             <button key={a.id} role="tab" aria-selected={account === a.id} className={account === a.id ? 'on' : ''} onClick={() => setAccount(a.id)}>

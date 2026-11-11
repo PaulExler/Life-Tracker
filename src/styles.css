@@ -227,3 +227,22 @@ a.card.row { color: inherit; }
 
 .account-chips .chip.on { background: var(--accent); color: var(--accent-text); }
 .segmented button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- UI audit fixes (tap targets ≥ 40px, overflow) ---------- */
+button.icon {
+  min-width: 40px; min-height: 40px; padding: 8px;
+  display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 10px;
+}
+button.icon:active { background: var(--accent-soft); }
+button.icon:disabled { opacity: .2; }
+button.icon[aria-label^="Previous"], button.icon[aria-label^="Next"] { font-size: 1.7rem; line-height: 1; color: var(--text); }
+.icon-link { padding: 11px; margin: -6px -8px -6px 0; border-radius: 12px; }
+button.link { min-height: 40px; padding: 8px 2px; }
+.segmented.scroll { display: flex; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.segmented.scroll::-webkit-scrollbar { display: none; }
+.segmented.scroll button { flex: 0 0 auto; padding: 6px 14px; text-overflow: clip; }
+.rest-day { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+a.btn-secondary {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 8px 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--accent); text-decoration: none; font-weight: 600; font-size: .9rem;
+}
