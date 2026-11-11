@@ -9,11 +9,12 @@ import { TaskList } from './features/Tasks'
 import { HabitsPage, TodayHabits } from './features/Habits'
 import { WaterCard } from './features/Water'
 import { FoodPage, TodayCalories } from './features/food/FoodPage'
+import { MoneyPage, TodayMoney } from './features/money/MoneyPage'
 import { SettingsPage } from './features/SettingsPage'
 import { WorkoutsPage } from './features/workouts/WorkoutsPage'
 import { TodayWorkouts } from './features/workouts/TodayWorkouts'
 import { CalendarBanner } from './components/CalendarBanner'
-import { CheckIcon, DumbbellIcon, FoodIcon, GearIcon, RepeatIcon, SunIcon } from './components/Icons'
+import { CheckIcon, DumbbellIcon, FoodIcon, GearIcon, RepeatIcon, SunIcon, WalletIcon } from './components/Icons'
 
 const TABS = [
   { id: 'today', label: 'Today', icon: <SunIcon /> },
@@ -21,6 +22,7 @@ const TABS = [
   { id: 'food', label: 'Food', icon: <FoodIcon /> },
   { id: 'tasks', label: 'Tasks', icon: <CheckIcon /> },
   { id: 'habits', label: 'Habits', icon: <RepeatIcon /> },
+  { id: 'money', label: 'Money', icon: <WalletIcon /> },
 ] as const
 type TabId = (typeof TABS)[number]['id'] | 'settings'
 
@@ -94,6 +96,10 @@ export default function App() {
       title = 'Food'
       page = <FoodPage />
       break
+    case 'money':
+      title = 'Money'
+      page = <MoneyPage />
+      break
     case 'settings':
       title = 'Settings'
       page = <SettingsPage email={session.user.email ?? ''} />
@@ -133,6 +139,7 @@ function TodayPage() {
       <Section title="Water"><WaterCard /></Section>
       <Section title="Habits"><TodayHabits /></Section>
       <Section title="Due today & overdue"><TaskList mode="today" /></Section>
+      <Section title="Money"><TodayMoney /></Section>
     </div>
   )
 }

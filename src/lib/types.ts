@@ -133,6 +133,38 @@ export interface Analysis {
   notes: string
 }
 
+export interface SpendCategory {
+  id: string
+  name: string
+  icon: string
+  monthly_budget: number | null
+  sort: number
+  archived: boolean
+}
+
+export type Interval = 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+
+export interface RecurringExpense {
+  id: string
+  name: string
+  amount: number
+  category_id: string | null
+  interval: Interval
+  start_date: string
+  next_due: string
+  active: boolean
+  notes: string | null
+}
+
+export interface Expense {
+  id: string
+  spent_on: string
+  amount: number
+  category_id: string | null
+  note: string | null
+  recurring_id: string | null
+}
+
 export interface Settings {
   user_id: string
   water_goal_ml: number

@@ -214,3 +214,13 @@ a { color: var(--accent); }
   background: #000; color: #fff;
 }
 .scanner-bar span { flex: 1; }
+
+/* ---------- step 4: money ---------- */
+.tabs a { font-size: .66rem; }
+.amount-input { font-size: 1.6rem; font-weight: 700; min-height: 52px; }
+.date-input { width: 150px; }
+.bar.thin { height: 6px; }
+.cat-row { display: block; width: 100%; text-align: left; background: none; border: 1px solid transparent; padding: 6px 8px; min-height: 0; }
+.cat-row .bar { margin-top: 4px; }
+.cat-row.sel { border-color: var(--accent); background: var(--accent-soft); }
+a.card.row { color: inherit; }

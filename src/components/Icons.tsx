@@ -41,6 +41,13 @@ export const FoodIcon = () => (
     <path d="M17 22V2c-2.2 1.3-3 3.8-3 7v4h3" />
   </svg>
 )
+export const WalletIcon = () => (
+  <svg {...base}>
+    <path d="M20 7H5a2 2 0 0 1 0-4h13v4" />
+    <path d="M3 5v14a2 2 0 0 0 2 2h15V7" />
+    <circle cx="16" cy="14" r="1.2" />
+  </svg>
+)
 export const DropIcon = () => (
   <svg {...base}>
     <path d="M12 2.7s6 6.4 6 11.3a6 6 0 0 1-12 0c0-4.9 6-11.3 6-11.3z" />
