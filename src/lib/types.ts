@@ -79,6 +79,60 @@ export interface WaterLog {
   logged_at: string
 }
 
+export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+
+export interface Food {
+  id: string
+  name: string
+  brand: string | null
+  barcode: string | null
+  kind: 'product' | 'recipe' | 'custom'
+  kcal_100g: number
+  protein_100g: number | null
+  carbs_100g: number | null
+  fat_100g: number | null
+  default_grams: number | null
+  notes: string | null
+  archived: boolean
+}
+
+export interface Nutrition {
+  kcal: number
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+}
+
+export interface FoodLog extends Nutrition {
+  id: string
+  logged_at: string
+  meal: Meal
+  name: string
+  grams: number | null
+  kcal_low: number | null
+  kcal_high: number | null
+  source: 'manual' | 'food' | 'barcode' | 'photo' | 'recipe'
+  food_id: string | null
+  details: Analysis | null
+}
+
+export interface AnalysisItem {
+  name: string
+  grams: number
+  kcal: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+}
+
+export interface Analysis {
+  dish_name: string
+  items: AnalysisItem[]
+  total: { grams: number; kcal: number; kcal_low: number; kcal_high: number; protein_g: number; carbs_g: number; fat_g: number }
+  confidence: 'low' | 'medium' | 'high'
+  notes: string
+}
+
 export interface Settings {
   user_id: string
   water_goal_ml: number

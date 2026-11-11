@@ -52,7 +52,7 @@ export function SettingsPage({ email }: { email: string }) {
         <div className="small muted">Signed in as {email}</div>
         <button onClick={() => supabase.auth.signOut()}>Sign out</button>
       </div>
-      <p className="small muted center">Coming next: food &amp; calories, spending.</p>
+      <p className="small muted center">Coming next: spending.</p>
     </div>
   )
 }

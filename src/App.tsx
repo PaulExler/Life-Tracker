@@ -7,25 +7,27 @@ import { startup as startCalendar } from './lib/gcal'
 import { Login } from './features/Login'
 import { TaskList } from './features/Tasks'
 import { HabitsPage, TodayHabits } from './features/Habits'
-import { WaterCard, WaterPage } from './features/Water'
+import { WaterCard } from './features/Water'
+import { FoodPage, TodayCalories } from './features/food/FoodPage'
 import { SettingsPage } from './features/SettingsPage'
 import { WorkoutsPage } from './features/workouts/WorkoutsPage'
 import { TodayWorkouts } from './features/workouts/TodayWorkouts'
 import { CalendarBanner } from './components/CalendarBanner'
-import { CheckIcon, DropIcon, DumbbellIcon, GearIcon, RepeatIcon, SunIcon } from './components/Icons'
+import { CheckIcon, DumbbellIcon, FoodIcon, GearIcon, RepeatIcon, SunIcon } from './components/Icons'
 
 const TABS = [
   { id: 'today', label: 'Today', icon: <SunIcon /> },
   { id: 'workouts', label: 'Workouts', icon: <DumbbellIcon /> },
+  { id: 'food', label: 'Food', icon: <FoodIcon /> },
   { id: 'tasks', label: 'Tasks', icon: <CheckIcon /> },
   { id: 'habits', label: 'Habits', icon: <RepeatIcon /> },
-  { id: 'water', label: 'Water', icon: <DropIcon /> },
 ] as const
 type TabId = (typeof TABS)[number]['id'] | 'settings'
 
 const tabFromHash = (): TabId => {
   const h = location.hash.slice(1)
   if (h === 'settings') return 'settings'
+  if (h === 'water') return 'food'
   return TABS.find((t) => t.id === h)?.id ?? 'today'
 }
 
@@ -88,9 +90,9 @@ export default function App() {
       title = 'Habits'
       page = <HabitsPage />
       break
-    case 'water':
-      title = 'Water'
-      page = <WaterPage />
+    case 'food':
+      title = 'Food'
+      page = <FoodPage />
       break
     case 'settings':
       title = 'Settings'
@@ -127,6 +129,7 @@ function TodayPage() {
   return (
     <div className="stack">
       <Section title="Workout"><TodayWorkouts /></Section>
+      <Section title="Calories"><TodayCalories /></Section>
       <Section title="Water"><WaterCard /></Section>
       <Section title="Habits"><TodayHabits /></Section>
       <Section title="Due today & overdue"><TaskList mode="today" /></Section>

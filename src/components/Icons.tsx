@@ -35,6 +35,12 @@ export const DumbbellIcon = () => (
     <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11" />
   </svg>
 )
+export const FoodIcon = () => (
+  <svg {...base}>
+    <path d="M7 2v8a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V2M9 2v20" />
+    <path d="M17 22V2c-2.2 1.3-3 3.8-3 7v4h3" />
+  </svg>
+)
 export const DropIcon = () => (
   <svg {...base}>
     <path d="M12 2.7s6 6.4 6 11.3a6 6 0 0 1-12 0c0-4.9 6-11.3 6-11.3z" />
