@@ -69,7 +69,7 @@ export interface OffProduct {
   fat_100g: number | null
   default_grams: number | null
   /** where the values come from: Open Food Facts, USDA FoodData Central, or an AI estimate */
-  origin?: 'off' | 'usda' | 'ai'
+  origin?: 'off' | 'usda' | 'ai' | 'table'
   note?: string
 }
 

@@ -51,6 +51,16 @@ export function SettingsPage({ email }: { email: string }) {
       <ExerciseSettings />
       <AccountSettings />
       <CategorySettings />
+      <div className="card stack small muted">
+        <h3>Food data sources</h3>
+        <div>
+          Bundeslebensmittelschlüssel (BLS) 4.0 — Max Rubner-Institut (2025), Karlsruhe, licensed under{' '}
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>,{' '}
+          <a href="https://doi.org/10.25826/Data20251217-134202-0" target="_blank" rel="noreferrer">DOI 10.25826/Data20251217-134202-0</a>. Values converted to per-100 g kcal/protein/carbs/fat.
+        </div>
+        <div>Schweizer Nährwertdatenbank V6.5 — Bundesamt für Lebensmittelsicherheit und Veterinärwesen (BLV), naehrwertdaten.ch.</div>
+        <div>Products: Open Food Facts contributors (ODbL). Generic foods: USDA FoodData Central (public domain).</div>
+      </div>
       <div className="card stack">
         <div className="small muted">Signed in as {email}</div>
         <button onClick={() => supabase.auth.signOut()}>Sign out</button>

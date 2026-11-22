@@ -4,6 +4,7 @@ import { ok, toast } from '../../lib/toast'
 import { addLog, analyze, defaultMeal, forGrams, MEAL_LABEL, MEALS, offByBarcode, per100, resizeImage, saveFood, searchFoods, aiLookup, timeFor, type OffProduct } from '../../lib/food'
 import type { Analysis, Food, Meal } from '../../lib/types'
 import { BarcodeScanner, canScan } from './BarcodeScanner'
+import { preloadTables, searchTables } from '../../lib/foodtables'
 
 const n = (s: string) => (s.trim() === '' ? null : Number(s.replace(',', '.')))
 
@@ -100,6 +101,26 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
   const [aiBusy, setAiBusy] = useState(false)
   const [scan, setScan] = useState(false)
   const [picked, setPicked] = useState<Pick | null>(null)
+  const [tableHits, setTableHits] = useState<OffProduct[]>([])
+
+  // Official German/Swiss tables are bundled with the app: search them while typing.
+  useEffect(() => {
+    preloadTables()
+  }, [])
+  useEffect(() => {
+    const s = q.trim()
+    if (s.length < 2 || /^\d+$/.test(s)) return setTableHits([])
+    let stale = false
+    const t = setTimeout(() => {
+      searchTables(s)
+        .then((r) => !stale && setTableHits(r))
+        .catch(() => !stale && setTableHits([]))
+    }, 180)
+    return () => {
+      stale = true
+      clearTimeout(t)
+    }
+  }, [q])
 
   useEffect(() => {
     supabase.from('foods').select('*').eq('archived', false).order('name').then((r) => ok(r) && setFoods(r.data as Food[]))
@@ -146,7 +167,7 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
     return <GramsForm pick={picked} day={day} meal={meal} setMeal={setMeal} onBack={() => setPicked(null)} onAdded={onAdded} />
 
   const pick = (p: OffProduct) => setPicked({ product: p })
-  const nothing = results && results.products.length === 0 && results.generic.length === 0
+  const nothing = results && results.products.length === 0 && results.generic.length === 0 && tableHits.length === 0
 
   return (
     <div className="card stack">
@@ -173,16 +194,22 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
         </>
       )}
 
-      {results && results.generic.length > 0 && (
+      {tableHits.length > 0 && (
         <>
-          <h2>Foods & dishes (USDA)</h2>
-          <ResultList items={results.generic.slice(0, 8)} onPick={pick} />
+          <h2>German & Swiss food tables</h2>
+          <ResultList items={tableHits.slice(0, 12)} onPick={pick} />
         </>
       )}
       {results && results.products.length > 0 && (
         <>
           <h2>Products (Open Food Facts)</h2>
           <ResultList items={results.products} onPick={pick} />
+        </>
+      )}
+      {results && results.generic.length > 0 && (
+        <>
+          <h2>More foods (USDA, English names)</h2>
+          <ResultList items={results.generic.slice(0, 8)} onPick={pick} />
         </>
       )}
       {nothing && <p className="small muted">No database match for “{searched}”.</p>}
@@ -193,8 +220,7 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
       )}
       {!results && mine.length === 0 && (
         <p className="small muted">
-          Search products (German/English), plain foods like “rice cooked” or “chicken breast”, or any dish — the AI estimate covers
-          things no database has. Foods you log are remembered here.
+          Type a food or dish in German or English — the official German (BLS) and Swiss tables are searched as you type. Tap Search for branded products; the AI estimate covers anything else. Foods you log are remembered here.
         </p>
       )}
     </div>

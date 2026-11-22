@@ -9,6 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico,json}'], maximumFileSizeToCacheInBytes: 3 * 1024 * 1024 },
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'icon.svg'],
       manifest: {
         name: 'Life Tracker',
