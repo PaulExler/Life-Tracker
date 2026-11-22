@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ok, toast } from '../../lib/toast'
-import { addLog, analyze, defaultMeal, forGrams, MEAL_LABEL, MEALS, offByBarcode, offSearch, per100, resizeImage, saveFood, timeFor, type OffProduct } from '../../lib/food'
+import { addLog, analyze, defaultMeal, forGrams, MEAL_LABEL, MEALS, offByBarcode, per100, resizeImage, saveFood, searchFoods, aiLookup, timeFor, type OffProduct } from '../../lib/food'
 import type { Analysis, Food, Meal } from '../../lib/types'
 import { BarcodeScanner, canScan } from './BarcodeScanner'
 
@@ -73,14 +73,31 @@ export function QuickAdd({ day, meal, setMeal, onAdded }: PanelProps) {
   )
 }
 
-// ---------------- Search: my foods + Open Food Facts + barcode ----------------
+// ---------------- Search: my foods + Open Food Facts + USDA + AI estimate + barcode ----------------
 type Pick = { food?: Food; product?: OffProduct }
+
+function ResultList({ items, onPick }: { items: OffProduct[]; onPick: (p: OffProduct) => void }) {
+  return (
+    <ul className="list compact">
+      {items.map((p, i) => (
+        <li key={`${p.origin}-${p.barcode}-${p.name}-${i}`} className="item row clickable" onClick={() => onPick(p)}>
+          <div className="grow">
+            <div className="title">{p.name}</div>
+            <div className="small muted">{p.brand ? `${p.brand} · ` : ''}{Math.round(p.kcal_100g)} kcal / 100 g</div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
   const [foods, setFoods] = useState<Food[]>([])
   const [q, setQ] = useState('')
-  const [results, setResults] = useState<OffProduct[] | null>(null)
+  const [searched, setSearched] = useState('')
+  const [results, setResults] = useState<{ products: OffProduct[]; generic: OffProduct[] } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
   const [scan, setScan] = useState(false)
   const [picked, setPicked] = useState<Pick | null>(null)
 
@@ -100,8 +117,8 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
     setBusy(true)
     const p = await offByBarcode(code)
     setBusy(false)
-    if (p) setPicked({ product: p })
-    else toast(`No product found for barcode ${code}. Add it with Quick entry instead.`)
+    if (p) setPicked({ product: { ...p, origin: 'off' } })
+    else toast(`No product found for barcode ${code}. Try the search or the AI estimate.`)
   }
 
   async function search() {
@@ -109,8 +126,18 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
     if (!s) return
     if (/^\d{8,14}$/.test(s)) return lookup(s)
     setBusy(true)
-    setResults(await offSearch(s))
+    setResults(await searchFoods(s))
+    setSearched(s)
     setBusy(false)
+  }
+
+  async function estimate() {
+    const s = (searched || q).trim()
+    if (!s) return
+    setAiBusy(true)
+    const p = await aiLookup(s)
+    setAiBusy(false)
+    if (p) setPicked({ product: p })
   }
 
   const onCode = useCallback((c: string) => void lookup(c), [foods]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -118,11 +145,14 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
   if (picked)
     return <GramsForm pick={picked} day={day} meal={meal} setMeal={setMeal} onBack={() => setPicked(null)} onAdded={onAdded} />
 
+  const pick = (p: OffProduct) => setPicked({ product: p })
+  const nothing = results && results.products.length === 0 && results.generic.length === 0
+
   return (
     <div className="card stack">
       {scan && <BarcodeScanner onCode={onCode} onClose={() => setScan(false)} />}
       <form className="row" onSubmit={(e) => { e.preventDefault(); search() }}>
-        <input className="grow" placeholder="Search food or type a barcode" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="grow" placeholder="Search food, dish or barcode" value={q} onChange={(e) => setQ(e.target.value)} />
         <button disabled={busy || !q.trim()}>{busy ? '…' : 'Search'}</button>
       </form>
       {canScan && <button onClick={() => setScan(true)}>📷 Scan barcode</button>}
@@ -142,26 +172,31 @@ export function SearchAdd({ day, meal, setMeal, onAdded }: PanelProps) {
           </ul>
         </>
       )}
-      {results && (
+
+      {results && results.generic.length > 0 && (
         <>
-          <h2>Open Food Facts</h2>
-          {results.length === 0 ? (
-            <p className="small muted">Nothing found. Try another spelling, or use Quick / Photo.</p>
-          ) : (
-            <ul className="list compact">
-              {results.map((p, i) => (
-                <li key={`${p.barcode}-${i}`} className="item row clickable" onClick={() => setPicked({ product: p })}>
-                  <div className="grow">
-                    <div className="title">{p.name}</div>
-                    <div className="small muted">{p.brand ? `${p.brand} · ` : ''}{Math.round(p.kcal_100g)} kcal / 100 g</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <h2>Foods & dishes (USDA)</h2>
+          <ResultList items={results.generic.slice(0, 8)} onPick={pick} />
         </>
       )}
-      {!results && mine.length === 0 && <p className="small muted">Foods you log from search, barcode or recipes are remembered here.</p>}
+      {results && results.products.length > 0 && (
+        <>
+          <h2>Products (Open Food Facts)</h2>
+          <ResultList items={results.products} onPick={pick} />
+        </>
+      )}
+      {nothing && <p className="small muted">No database match for “{searched}”.</p>}
+      {results && (
+        <button className="ai-btn" onClick={estimate} disabled={aiBusy}>
+          {aiBusy ? 'Estimating…' : `✨ ${nothing ? '' : 'Not the right one? '}Estimate “${searched}” with AI`}
+        </button>
+      )}
+      {!results && mine.length === 0 && (
+        <p className="small muted">
+          Search products (German/English), plain foods like “rice cooked” or “chicken breast”, or any dish — the AI estimate covers
+          things no database has. Foods you log are remembered here.
+        </p>
+      )}
     </div>
   )
 }
@@ -171,24 +206,27 @@ function GramsForm({ pick, day, meal, setMeal, onBack, onAdded }: { pick: Pick; 
   const [grams, setGrams] = useState(String(base.default_grams ?? 100))
   const g = Number(n(grams)) || 0
   const nut = forGrams(base, g)
+  const note = pick.product?.note
 
   async function add() {
     if (!(g > 0)) return
     let food_id = pick.food?.id ?? null
     if (pick.product) {
-      // Remember the product so it shows under "My foods" next time.
+      // Remember it so it shows under "My foods" next time.
       const p = pick.product
       const existing = p.barcode ? await supabase.from('foods').select('id').eq('barcode', p.barcode).maybeSingle() : null
       food_id =
         existing?.data?.id ??
         (await saveFood({
-          name: p.name, brand: p.brand, barcode: p.barcode || null, kind: 'product', kcal_100g: p.kcal_100g,
-          protein_100g: p.protein_100g, carbs_100g: p.carbs_100g, fat_100g: p.fat_100g, default_grams: p.default_grams,
+          name: p.name, brand: p.brand, barcode: p.barcode || null, kind: p.origin === 'off' ? 'product' : 'custom',
+          kcal_100g: p.kcal_100g, protein_100g: p.protein_100g, carbs_100g: p.carbs_100g, fat_100g: p.fat_100g,
+          default_grams: p.default_grams, notes: p.note ?? null,
         }))?.id ??
         null
     }
-    const name = base.brand ? `${base.name} (${base.brand})` : base.name
-    if (await addLog({ name, grams: g, ...nut, meal, logged_at: timeFor(day, meal), source: pick.product ? 'barcode' : 'food', food_id })) onAdded()
+    const name = base.brand && pick.product?.origin === 'off' ? `${base.name} (${base.brand})` : base.name
+    const source = pick.product?.origin === 'off' && pick.product.barcode ? 'barcode' : 'food'
+    if (await addLog({ name, grams: g, ...nut, meal, logged_at: timeFor(day, meal), source, food_id })) onAdded()
   }
 
   return (
@@ -196,6 +234,7 @@ function GramsForm({ pick, day, meal, setMeal, onBack, onAdded }: { pick: Pick; 
       <div>
         <div className="title">{base.name}</div>
         <div className="small muted">{base.brand ? `${base.brand} · ` : ''}{Math.round(base.kcal_100g)} kcal / 100 g</div>
+        {note && <div className="small muted">{note}</div>}
       </div>
       <label>
         <span className="label">Amount (g)</span>

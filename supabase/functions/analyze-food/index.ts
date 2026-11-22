@@ -54,6 +54,66 @@ Return your estimate for the portion the user actually ate.
 - Round kcal to whole numbers and grams/macros to one decimal.
 - Write names and notes in English.`
 
+const UA = { 'User-Agent': 'LifeTracker/0.1 (personal app)' }
+
+async function searchOff(q: string) {
+  const r = await fetch(
+    `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=de,en&page_size=20` +
+      `&fields=code,product_name,product_name_en,product_name_de,brands,nutriments,serving_quantity`,
+    { headers: UA },
+  )
+  if (!r.ok) throw new Error(`OFF ${r.status}`)
+  return (await r.json()).hits ?? []
+}
+
+type FdcNutrient = { nutrientNumber?: string; value?: number }
+async function searchUsda(q: string) {
+  const key = Deno.env.get('FDC_API_KEY') || 'DEMO_KEY'
+  const r = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${key}`, {
+    method: 'POST',
+    headers: { ...UA, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: q, dataType: ['Foundation', 'SR Legacy', 'Survey (FNDDS)'], pageSize: 15 }),
+  })
+  if (!r.ok) throw new Error(`USDA ${r.status}`)
+  const j = await r.json()
+  // deno-lint-ignore no-explicit-any
+  return (j.foods ?? []).flatMap((f: any) => {
+    const n = (num: string) => (f.foodNutrients as FdcNutrient[] | undefined)?.find((x) => x.nutrientNumber === num)?.value
+    const kcal = n('208') ?? n('958') ?? n('957') ?? (n('268') != null ? n('268')! / 4.184 : undefined)
+    if (kcal == null) return []
+    return [{
+      fdcId: f.fdcId,
+      name: String(f.description),
+      category: f.foodCategory ?? null,
+      kcal_100g: Math.round(kcal * 10) / 10,
+      protein_100g: n('203') ?? null,
+      carbs_100g: n('205') ?? null,
+      fat_100g: n('204') ?? null,
+    }]
+  })
+}
+
+const LOOKUP_SYSTEM = `You give typical nutrition values per 100 g for a named food or dish, for a calorie tracker.
+The name may be German (Austrian dishes are common) or English. Use standard food tables; for dishes assume a typical home or restaurant recipe.
+Return the English name (plus the original name in brackets if it was not English), values per 100 g, and one typical portion with its weight.
+Keep notes to one short sentence (main assumption).`
+
+const LOOKUP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g', 'portion_g', 'portion_label', 'notes'],
+  properties: {
+    name: { type: 'string' },
+    kcal_100g: { type: 'number' },
+    protein_100g: { type: 'number' },
+    carbs_100g: { type: 'number' },
+    fat_100g: { type: 'number' },
+    portion_g: { type: 'number' },
+    portion_label: { type: 'string', description: 'e.g. "1 Semmel", "1 plate"' },
+    notes: { type: 'string' },
+  },
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
@@ -74,21 +134,42 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400)
   }
 
-  // Product search (Open Food Facts search service has no browser CORS, so it is proxied here). No AI involved.
+  // Food search across databases (no AI involved):
+  //  - Open Food Facts: packaged products (German + English names)
+  //  - USDA FoodData Central: generic foods & dishes with lab values (English names).
+  //    Optional secret FDC_API_KEY (free at api.data.gov/signup); DEMO_KEY otherwise (low rate limit).
   if (body.mode === 'search') {
     const q = String(body.q ?? '').trim().slice(0, 100)
-    if (!q) return json({ hits: [] })
+    if (!q) return json({ hits: [], generic: [] })
+    const [off, usda] = await Promise.allSettled([searchOff(q), searchUsda(q)])
+    if (off.status === 'rejected' && usda.status === 'rejected') return json({ error: 'Food search unavailable' }, 502)
+    return json({
+      hits: off.status === 'fulfilled' ? off.value : [],
+      generic: usda.status === 'fulfilled' ? usda.value : [],
+    })
+  }
+
+  // AI lookup: typical nutrition per 100 g for any food or dish name, in any language.
+  if (body.mode === 'lookup') {
+    const q = String(body.q ?? '').trim().slice(0, 200)
+    if (!q) return json({ error: 'Missing food name' }, 400)
     try {
-      const r = await fetch(
-        `https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&page_size=20` +
-          `&fields=code,product_name,product_name_en,product_name_de,brands,nutriments,serving_quantity`,
-        { headers: { 'User-Agent': 'LifeTracker/0.1 (personal app)' } },
-      )
-      if (!r.ok) return json({ error: `Product search unavailable (${r.status})` }, 502)
-      const j = await r.json()
-      return json({ hits: j.hits ?? [] })
-    } catch {
-      return json({ error: 'Product search unavailable' }, 502)
+      const response = await client.beta.messages.create({
+        model: MODEL,
+        max_tokens: 4000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        system: LOOKUP_SYSTEM,
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: LOOKUP_SCHEMA } },
+        messages: [{ role: 'user', content: `Food: ${q}` }],
+      })
+      if (response.stop_reason === 'refusal') return json({ error: 'The model declined this lookup.' }, 422)
+      const text = response.content.find((b) => b.type === 'text')
+      if (!text || text.type !== 'text') return json({ error: 'No result returned' }, 502)
+      return json(JSON.parse(text.text))
+    } catch (e) {
+      if (e instanceof Anthropic.APIError) return json({ error: `Claude API error ${e.status}: ${e.message}` }, 502)
+      return json({ error: String(e) }, 500)
     }
   }
 

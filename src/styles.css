@@ -257,3 +257,4 @@ a.btn-secondary {
   border: 2px dashed var(--border); border-radius: var(--radius); background: var(--bg); cursor: pointer; font-weight: 600;
 }
 .photo-btn:active { background: var(--accent-soft); }
+.ai-btn { border-style: dashed; color: var(--accent); font-weight: 600; }

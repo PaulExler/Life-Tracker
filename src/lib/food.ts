@@ -68,6 +68,9 @@ export interface OffProduct {
   carbs_100g: number | null
   fat_100g: number | null
   default_grams: number | null
+  /** where the values come from: Open Food Facts, USDA FoodData Central, or an AI estimate */
+  origin?: 'off' | 'usda' | 'ai'
+  note?: string
 }
 
 const OFF_FIELDS = 'code,product_name,product_name_en,product_name_de,brands,nutriments,serving_quantity'
@@ -103,14 +106,65 @@ export async function offByBarcode(code: string): Promise<OffProduct | null> {
   }
 }
 
-/** Text search via our Edge Function (the Open Food Facts search service can't be called from the browser). */
-export async function offSearch(q: string): Promise<OffProduct[]> {
+/**
+ * Text search via our Edge Function: packaged products (Open Food Facts, German + English)
+ * and generic foods (USDA FoodData Central, English names).
+ */
+export async function searchFoods(q: string): Promise<{ products: OffProduct[]; generic: OffProduct[] }> {
   const { data, error } = await supabase.functions.invoke('analyze-food', { body: { mode: 'search', q } })
-  if (error || !data?.hits) {
-    toast('Product search is not available right now — try a barcode or Quick entry.')
-    return []
+  if (error || !data) {
+    toast('Food search is not available right now — try the AI estimate, a barcode or Quick entry.')
+    return { products: [], generic: [] }
   }
-  return (data.hits as unknown[]).map(fromOff).filter(Boolean) as OffProduct[]
+  const products = ((data.hits ?? []) as unknown[]).map(fromOff).filter(Boolean).map((p) => ({ ...p!, origin: 'off' as const }))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const generic = ((data.generic ?? []) as any[]).map((g) => ({
+    barcode: '',
+    name: String(g.name),
+    brand: g.category ? `USDA · ${g.category}` : 'USDA',
+    kcal_100g: r1(Number(g.kcal_100g)),
+    protein_100g: g.protein_100g == null ? null : r1(Number(g.protein_100g)),
+    carbs_100g: g.carbs_100g == null ? null : r1(Number(g.carbs_100g)),
+    fat_100g: g.fat_100g == null ? null : r1(Number(g.fat_100g)),
+    default_grams: null,
+    origin: 'usda' as const,
+  }))
+  return { products, generic }
+}
+
+/** Kept for compatibility: products only. */
+export async function offSearch(q: string): Promise<OffProduct[]> {
+  return (await searchFoods(q)).products
+}
+
+/** AI estimate per 100 g for any food or dish name (any language). */
+export async function aiLookup(q: string): Promise<OffProduct | null> {
+  const { data, error } = await supabase.functions.invoke('analyze-food', { body: { mode: 'lookup', q } })
+  if (error || !data?.name) {
+    let msg = 'AI estimate failed — try again or use Quick entry.'
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const m = (await error.context.json()).error
+        if (m) msg = /mode must be/.test(m) ? 'Update the analyze-food function in Supabase to use AI estimates.' : m
+      } catch {
+        /* keep default */
+      }
+    }
+    toast(msg)
+    return null
+  }
+  return {
+    barcode: '',
+    name: String(data.name),
+    brand: 'AI estimate',
+    kcal_100g: r1(Number(data.kcal_100g)),
+    protein_100g: r1(Number(data.protein_100g)),
+    carbs_100g: r1(Number(data.carbs_100g)),
+    fat_100g: r1(Number(data.fat_100g)),
+    default_grams: Number(data.portion_g) > 0 ? Math.round(Number(data.portion_g)) : null,
+    origin: 'ai',
+    note: [data.portion_label && `Typical portion: ${data.portion_label} (${Math.round(data.portion_g)} g)`, data.notes].filter(Boolean).join(' · '),
+  }
 }
 
 // ---------- AI analysis (Supabase Edge Function → Claude) ----------
