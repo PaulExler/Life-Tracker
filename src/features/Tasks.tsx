@@ -9,8 +9,8 @@ import { EditIcon, TrashIcon } from '../components/Icons'
 const sortOpen = (a: Task, b: Task) =>
   (a.due_at ?? '9999').localeCompare(b.due_at ?? '9999') || a.created_at.localeCompare(b.created_at)
 
-/** mode "today": open tasks due today or overdue (for the Today screen). */
-export function TaskList({ mode = 'all' }: { mode?: 'all' | 'today' }) {
+/** mode "today": open tasks due today or overdue; "open": every open task (Today screen); "all": full Tasks page. */
+export function TaskList({ mode = 'all' }: { mode?: 'all' | 'today' | 'open' }) {
   const [open, setOpen] = useState<Task[]>([])
   const [done, setDone] = useState<Task[]>([])
   const [loaded, setLoaded] = useState(false)

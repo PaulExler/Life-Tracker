@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ok, toast } from '../../lib/toast'
-import { addLog, analyze, forGrams, MEAL_LABEL, MEALS, offByBarcode, offSearch, per100, resizeImage, saveFood, timeFor, type OffProduct } from '../../lib/food'
+import { addLog, analyze, defaultMeal, forGrams, MEAL_LABEL, MEALS, offByBarcode, offSearch, per100, resizeImage, saveFood, timeFor, type OffProduct } from '../../lib/food'
 import type { Analysis, Food, Meal } from '../../lib/types'
 import { BarcodeScanner, canScan } from './BarcodeScanner'
 
@@ -225,11 +225,19 @@ export function AnalyzeAdd({ mode, day, meal, setMeal, onAdded }: PanelProps & {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Analysis | null>(null)
+  const [photoTime, setPhotoTime] = useState<Date | null>(null)
 
   async function pickFile(file?: File) {
     if (!file) return
     try {
       setImage(await resizeImage(file))
+      // A photo from the gallery carries the time it was taken; offer to log the meal then.
+      const age = Date.now() - file.lastModified
+      if (file.lastModified && age > 10 * 60_000 && age < 60 * 86_400_000) {
+        const t = new Date(file.lastModified)
+        setPhotoTime(t)
+        setMeal(defaultMeal(t))
+      } else setPhotoTime(null)
     } catch {
       toast('Could not read that image.')
     }
@@ -254,6 +262,7 @@ export function AnalyzeAdd({ mode, day, meal, setMeal, onAdded }: PanelProps & {
         day={day}
         meal={meal}
         setMeal={setMeal}
+        photoTime={photoTime}
         onBack={() => setResult(null)}
         onAdded={onAdded}
       />
@@ -263,10 +272,18 @@ export function AnalyzeAdd({ mode, day, meal, setMeal, onAdded }: PanelProps & {
     <div className="card stack">
       {mode === 'photo' ? (
         <>
-          <label className="photo-pick">
-            {image ? <img src={image.preview} alt="Your meal" /> : <span>📷 Take or choose a photo</span>}
-            <input type="file" accept="image/*" capture="environment" onChange={(e) => pickFile(e.target.files?.[0])} hidden />
-          </label>
+          {image && <img className="photo-preview" src={image.preview} alt="Your meal" />}
+          <div className="row">
+            <label className="photo-btn grow">
+              📷 {image ? 'New photo' : 'Take photo'}
+              <input type="file" accept="image/*" capture="environment" onChange={(e) => pickFile(e.target.files?.[0])} hidden />
+            </label>
+            <label className="photo-btn grow">
+              🖼️ From gallery
+              <input type="file" accept="image/*" onChange={(e) => pickFile(e.target.files?.[0])} hidden />
+            </label>
+          </div>
+          {photoTime && <p className="small muted">Photo taken {fmtWhen(photoTime)} — the entry will be logged at that time.</p>}
           <label>
             <span className="label">Weight on the scale (g) — makes it much more accurate</span>
             <input inputMode="decimal" value={grams} onChange={(e) => setGrams(e.target.value)} placeholder="e.g. 450" />
@@ -301,6 +318,9 @@ export function AnalyzeAdd({ mode, day, meal, setMeal, onAdded }: PanelProps & {
   )
 }
 
+const fmtWhen = (d: Date) =>
+  d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
 function AnalysisResult({
   result,
   mode,
@@ -308,9 +328,11 @@ function AnalysisResult({
   day,
   meal,
   setMeal,
+  photoTime,
   onBack,
   onAdded,
-}: { result: Analysis; mode: 'photo' | 'recipe'; recipeText: string; onBack: () => void } & PanelProps) {
+}: { result: Analysis; mode: 'photo' | 'recipe'; recipeText: string; photoTime?: Date | null; onBack: () => void } & PanelProps) {
+  const [usePhotoTime, setUsePhotoTime] = useState(!!photoTime)
   const t = result.total
   const [name, setName] = useState(result.dish_name)
   const [grams, setGrams] = useState(String(Math.round(t.grams)))
@@ -350,12 +372,15 @@ function AnalysisResult({
       kcal_low: Math.round(t.kcal_low * scale),
       kcal_high: Math.round(t.kcal_high * scale),
       meal,
-      logged_at: timeFor(day, meal),
+      logged_at: usePhotoTime && photoTime ? photoTime.toISOString() : timeFor(day, meal),
       source: mode,
       food_id,
       details: result,
     })
-    if (ok) onAdded()
+    if (ok) {
+      if (usePhotoTime && photoTime && photoTime.toDateString() !== day.toDateString()) toast(`Added to ${fmtWhen(photoTime)}`)
+      onAdded()
+    }
   }
 
   return (
@@ -387,6 +412,12 @@ function AnalysisResult({
         <label className="grow"><span className="label">kcal</span><input inputMode="decimal" value={kcal} onChange={(e) => setKcal(e.target.value)} /></label>
       </div>
       <MealPicker meal={meal} onChange={setMeal} />
+      {photoTime && (
+        <label className="row small">
+          <input type="checkbox" className="check" checked={usePhotoTime} onChange={(e) => setUsePhotoTime(e.target.checked)} />
+          Log at the time the photo was taken ({fmtWhen(photoTime)})
+        </label>
+      )}
       <label className="row small">
         <input type="checkbox" className="check" checked={save} onChange={(e) => setSave(e.target.checked)} />
         Save to my foods {mode === 'recipe' ? '(recipe, per 100 g — log it again by weight later)' : 'for next time'}

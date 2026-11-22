@@ -138,7 +138,7 @@ function TodayPage() {
       <Section title="Calories"><TodayCalories /></Section>
       <Section title="Water"><WaterCard /></Section>
       <Section title="Habits"><TodayHabits /></Section>
-      <Section title="Due today & overdue"><TaskList mode="today" /></Section>
+      <Section title="Tasks"><TaskList mode="open" /></Section>
       <Section title="Money"><TodayMoney /></Section>
     </div>
   )

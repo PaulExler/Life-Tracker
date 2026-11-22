@@ -250,3 +250,10 @@ a.btn-secondary {
 .row.deadline { align-items: flex-end; }
 .deadline-time { width: 112px; flex: none; }
 .deadline-time input:disabled { opacity: .45; }
+
+.photo-preview { width: 100%; max-height: 320px; object-fit: cover; border-radius: var(--radius); display: block; }
+.photo-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 52px; padding: 10px;
+  border: 2px dashed var(--border); border-radius: var(--radius); background: var(--bg); cursor: pointer; font-weight: 600;
+}
+.photo-btn:active { background: var(--accent-soft); }
